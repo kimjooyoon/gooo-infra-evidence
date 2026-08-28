@@ -1,0 +1,28 @@
+package infraenvelopev2
+namespace infraenvelopev2
+
+entity CoreReleaseReceipt id "infra://released-domain-envelope-v2/core-release"
+entity InterchangeSpecReleaseReceipt id "infra://released-domain-envelope-v2/interchange-spec-release"
+entity InfraReleaseReceipt id "infra://released-domain-envelope-v2/infra-release"
+entity MetaActivityReceiptSet id "infra://released-domain-envelope-v2/meta-activities"
+entity InfraDependencySource id "infra://released-domain-envelope-v2/infra-dependencies"
+entity ProductProjection id "infra://released-domain-envelope-v2/product-projection"
+entity EightFileEnvelope id "infra://released-domain-envelope-v2/eight-file-envelope"
+entity ReadOnlyConformance id "infra://released-domain-envelope-v2/read-only-conformance"
+entity UnknownCausalityReportSet id "infra://released-domain-envelope-v2/unknown-causality"
+entity DeterministicReplayReceipt id "infra://released-domain-envelope-v2/deterministic-replay"
+entity RefutedCounterexampleReports id "infra://released-domain-envelope-v2/refuted-counterexamples"
+entity AuthorityBoundaryReceipt id "infra://released-domain-envelope-v2/authority-boundary"
+
+activity ObserveCurrentCoreRelease(CoreReleaseReceipt) -> CoreReleaseReceipt
+activity ObserveInterchangeSpecRelease(InterchangeSpecReleaseReceipt) -> InterchangeSpecReleaseReceipt
+activity ObserveInfraSemanticPlanRelease(InfraReleaseReceipt) -> InfraReleaseReceipt
+activity BindTwelveMetaActivities(MetaActivityReceiptSet) -> MetaActivityReceiptSet
+activity ObserveEightInfraDependencies(InfraDependencySource) -> InfraDependencySource
+activity ProjectInfraEnvelope(ProductProjection) -> ProductProjection
+activity PublishEightFileInfraEnvelope(EightFileEnvelope) -> EightFileEnvelope
+activity ConformInfraEnvelopeReadOnly(ReadOnlyConformance) -> ReadOnlyConformance
+activity PreserveUnknownCausality(UnknownCausalityReportSet) -> UnknownCausalityReportSet
+activity VerifyEnvelopeReplay(DeterministicReplayReceipt) -> DeterministicReplayReceipt
+activity RefuteMalformedCoreReports(RefutedCounterexampleReports) -> RefutedCounterexampleReports
+activity PreserveInfraAuthorityBoundary(AuthorityBoundaryReceipt) -> AuthorityBoundaryReceipt
