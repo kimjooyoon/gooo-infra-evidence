@@ -23,12 +23,16 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: '1.27.x'
+          cache: false
       - name: Conform Go 1.27 observer tool
         run: |
           set -euo pipefail
           case "$(go env GOVERSION)" in go1.27.*) ;; *) exit 1 ;; esac
-          test -z "$(gofmt -d scripts/observe-service-symbol.go)"
+          gofmt -d scripts/observe-service-symbol.go > "$RUNNER_TEMP/gofmt.diff"
+          cat "$RUNNER_TEMP/gofmt.diff"
+          test ! -s "$RUNNER_TEMP/gofmt.diff"
           go tool fix -diff scripts/observe-service-symbol.go > "$RUNNER_TEMP/go-fix.diff"
+          cat "$RUNNER_TEMP/go-fix.diff"
           test ! -s "$RUNNER_TEMP/go-fix.diff"
           go vet scripts/observe-service-symbol.go
           jq -n --arg version "$(go env GOVERSION)" '{schema:"gooo/infra-evidence/go-toolchain/v1",version:$version,gofmt_changes:0,fix_changes:0,vet_findings:0}' > "$RUNNER_TEMP/go-toolchain.json"
