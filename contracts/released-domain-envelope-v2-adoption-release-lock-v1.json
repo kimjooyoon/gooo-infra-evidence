@@ -1,0 +1,59 @@
+{
+  "schema": "gooo/infra-evidence/released-domain-envelope-v2-adoption-release-lock/v1",
+  "core": {
+    "repository": "kimjooyoon/meta-ontology-go",
+    "tag": "v0.4.0-dev",
+    "release_id": 378565653,
+    "target_commit_sha": "57ac9ec486bbca69e447a8eba94e0ce3cd03ced0",
+    "prerelease": true,
+    "assets": {
+      "linux": {"id": 533959499, "name": "gooo-linux-amd64.tar.gz", "size": 7057764, "sha256": "3f6f34156dc959c4ae80711ff55cfbd135023fd57df673d28247e1894bf42f48"},
+      "checksums": {"id": 533959512, "name": "SHA256SUMS", "size": 270, "sha256": "58f6882f9dc056af40e3892fbf8c4a702ff7123c2c7ff4fd4d1c26350297fe12"}
+    }
+  },
+  "interchange_spec": {
+    "repository": "kimjooyoon/gooo-interchange-spec",
+    "tag": "v0.3.0-dev",
+    "release_id": 378636646,
+    "target_commit_sha": "ad3b1f4afca3cc3a8dba662804360e3fffd4aefb",
+    "prerelease": true,
+    "asset": {"id": 534100046, "name": "gooo-interchange-consumer-kit-v2.tar.gz", "size": 7230, "sha256": "a87fff90f4c80a9f8634275c7bc7c7bf2c42e5ccee7e4a686c8cff4efb33233c"}
+  },
+  "infra": {
+    "repository": "kimjooyoon/gooo-infra-evidence",
+    "tag": "v0.8.0-dev",
+    "release_id": 378605552,
+    "target_commit_sha": "29008f2cd45f5c2a2ccec8fce8f143b30c85bfa2",
+    "prerelease": true,
+    "assets": {
+      "plan": {"id": 534034524, "name": "deployment-plan.json", "size": 7998, "sha256": "ee4d57e826bcb4b146fea59450603cb4e5ee22878a06cef9d6e64b8a29f66458"},
+      "replay": {"id": 534034540, "name": "semantic-deployment-plan-replay.json", "size": 148, "sha256": "ed3c2f9700ec525ad4cf409017fde469ab17279c5e7f2fd5ecaa93a01ecdd72d"}
+    }
+  },
+  "authority": {
+    "kit_source_checkout": 0,
+    "conformer_copy": 0,
+    "cross_project_required_gates": 0,
+    "repository_writes": 0,
+    "local_tests": 0,
+    "local_test_executions": 0,
+    "opentofu_init_executions": 0,
+    "opentofu_plan_executions": 0,
+    "opentofu_apply_executions": 0,
+    "opentofu_test_executions": 0,
+    "opentofu_source_imports": 0,
+    "opentofu_vendor_operations": 0,
+    "opentofu_build_executions": 0,
+    "opentofu_provider_accesses": 0,
+    "opentofu_network_accesses": 0,
+    "opentofu_cloud_accesses": 0,
+    "terraform_execution_authorized": false,
+    "terraform_apply_authorized": false,
+    "provider_implementation_authorized": false,
+    "openapi_generation_authorized": false,
+    "deployment_execution_authorized": false,
+    "network_probe_authorized": false,
+    "automatic_merge_allowed": false,
+    "product_generation_authorized": false
+  }
+}

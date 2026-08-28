@@ -1,0 +1,45 @@
+{
+  "schema": "gooo/infra-evidence/released-domain-envelope-v2-adoption-packet/v1",
+  "id": "infra://released-domain-envelope-v2/adoption-candidate",
+  "domain": "infra-evidence",
+  "source_program": "examples/released-domain-envelope-v2/main.gooo",
+  "denominator": "contracts/released-domain-envelope-v2-adoption-denominator-v1.json",
+  "release_lock": "contracts/released-domain-envelope-v2-adoption-release-lock-v1.json",
+  "kit": {
+    "manifest_schema": "gooo/interchange/released-domain-consumer-kit-manifest/v2",
+    "envelope_schema": "gooo/interchange/project/v2",
+    "conformer": "scripts/conform-released-envelope-v2.sh",
+    "source_checkout": 0,
+    "conformer_copy": 0
+  },
+  "envelope": {
+    "files": ["checksums.txt", "conformance.json", "evidence.ndjson", "project.json", "relations.ndjson", "replay.json", "resolutions.ndjson", "unknowns.ndjson"],
+    "relation_count": 8,
+    "evidence_count": 8,
+    "resolution_count": 8,
+    "normal_unknown_count": 0
+  },
+  "adoption": {
+    "released_domain_observed": 0,
+    "released_domain_total": 1,
+    "external_utility_observed": 0,
+    "external_utility_total": 1,
+    "exact_before_after_improvement_observed": 0,
+    "exact_before_after_improvement_total": 1,
+    "state": "UNKNOWN",
+    "reason": "RELEASED_DOMAIN_ADOPTION_AND_EXTERNAL_UTILITY_NOT_OBSERVED"
+  },
+  "non_claims": [
+    "GENERIC_LOCAL_RELEASE",
+    "GENERIC_DESIGN_RELEASE",
+    "TERRAFORM_EXECUTION",
+    "OPENAPI_GENERATION",
+    "PROVIDER_IMPLEMENTATION",
+    "DEPLOYMENT_EXECUTION",
+    "NETWORK_PROBE",
+    "SEMANTIC_TRUTH",
+    "STATE_PROPAGATION",
+    "AUTOMATIC_MERGE",
+    "CROSS_PROJECT_AUTHORITY"
+  ]
+}

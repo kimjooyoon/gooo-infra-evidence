@@ -1,0 +1,68 @@
+{
+  "schema": "gooo/infra-evidence/released-domain-envelope-v2-adoption-denominator/v1",
+  "version": 1,
+  "target_cells": 12,
+  "proof_totals": [
+    {"proof_choice": "FOUNDATION", "total": 4},
+    {"proof_choice": "COHERENCE", "total": 4},
+    {"proof_choice": "REGRESSION", "total": 4}
+  ],
+  "indicator_totals": [
+    {"indicator_class": "DRIVER", "total": 4},
+    {"indicator_class": "OUTCOME", "total": 4},
+    {"indicator_class": "GUARDRAIL", "total": 4}
+  ],
+  "expected": {
+    "kit_version": "v2",
+    "envelope_files": 8,
+    "local_checks": 10,
+    "local_check_ids": ["EXACT_FILE_SET", "PROJECT_IDENTITY_AND_AUTHORITY", "CARDINALITIES", "EVIDENCE_ANCHORS", "RELATION_ANCHORS", "RESOLUTION_TUPLES", "UNKNOWN_SUBSET", "SOURCE_REPLAY", "SHA256_CHECKSUMS", "DETERMINISTIC_REPLAY"],
+    "relations": 8,
+    "evidence": 8,
+    "resolutions": 8,
+    "unknown_coordinates": 6,
+    "source_replay": 1,
+    "file_replay": 8,
+    "normal_paths": 1,
+    "unknown_paths": 2,
+    "refuted_paths": 3,
+    "opentofu_boundary_cases": 2,
+    "projection_owner": "INTERCHANGE_SPECIFICATION",
+    "prior_infra": {
+      "semantic_dependencies": 8,
+      "semantic_edges": 6,
+      "semantic_activities": 6,
+      "dependency_kinds": 4,
+      "openapi_bindings": 1,
+      "terraform_bindings": 1,
+      "deployment_chain_cells": 4
+    },
+    "opentofu_adoption": {
+      "observed": 0,
+      "total": 1,
+      "state": "UNKNOWN",
+      "next_operation": "PROVIDE_IMMUTABLE_OPENTOFU_JSON_RECEIPT",
+      "iac_engine_enum": [
+        "OPENTOFU",
+        "TERRAFORM",
+        "UNKNOWN"
+      ]
+    },
+    "released_adoption": {"observed": 0, "total": 1},
+    "exact_before_after_improvement": {"observed": 0, "total": 1}
+  },
+  "cells": [
+    {"ordinal": 1, "id": "CORE_RELEASE", "activity": "ObserveCurrentCoreRelease", "stage": "CORE_RELEASE", "step": "OBSERVE_CURRENT_CORE_RELEASE", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "closed_reason": "CURRENT_CORE_RELEASE_OBSERVED", "unknown_reason": "CURRENT_CORE_RELEASE_UNAVAILABLE", "refuted_reason": "CURRENT_CORE_RELEASE_MISMATCH", "next_operation": "RESTORE_PINNED_CORE_RELEASE", "depends_on": []},
+    {"ordinal": 2, "id": "INTERCHANGE_SPEC_RELEASE", "activity": "ObserveInterchangeSpecRelease", "stage": "INTERCHANGE_SPEC_RELEASE", "step": "OBSERVE_PINNED_INTERCHANGE_SPEC_RELEASE", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "closed_reason": "INTERCHANGE_SPEC_RELEASE_OBSERVED", "unknown_reason": "INTERCHANGE_SPEC_RELEASE_UNAVAILABLE", "refuted_reason": "INTERCHANGE_SPEC_RELEASE_MISMATCH", "next_operation": "RESTORE_PINNED_INTERCHANGE_SPEC_RELEASE", "depends_on": ["CORE_RELEASE"]},
+    {"ordinal": 3, "id": "INFRA_RELEASE", "activity": "ObserveInfraSemanticPlanRelease", "stage": "INFRA_RELEASE", "step": "OBSERVE_PINNED_INFRA_SEMANTIC_PLAN_RELEASE", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "closed_reason": "INFRA_SEMANTIC_PLAN_RELEASE_OBSERVED", "unknown_reason": "INFRA_SEMANTIC_PLAN_RELEASE_UNAVAILABLE", "refuted_reason": "INFRA_SEMANTIC_PLAN_RELEASE_MISMATCH", "next_operation": "RESTORE_PINNED_INFRA_RELEASE", "depends_on": ["CORE_RELEASE"]},
+    {"ordinal": 4, "id": "META_ACTIVITY_AUTHORITY", "activity": "BindTwelveMetaActivities", "stage": "META_ACTIVITY", "step": "BIND_TWELVE_GOOO_ACTIVITIES", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "closed_reason": "TWELVE_META_ACTIVITIES_BOUND", "unknown_reason": "META_ACTIVITY_RECEIPTS_UNAVAILABLE", "refuted_reason": "META_ACTIVITY_CARDINALITY_MISMATCH", "next_operation": "RESTORE_TWELVE_META_ACTIVITY_RECEIPTS", "depends_on": ["CORE_RELEASE", "INTERCHANGE_SPEC_RELEASE", "INFRA_RELEASE"]},
+    {"ordinal": 5, "id": "INFRA_DEPENDENCY_SOURCE", "activity": "ObserveEightInfraDependencies", "stage": "INFRA_DEPENDENCY", "step": "OBSERVE_EIGHT_TYPED_DEPENDENCIES", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "closed_reason": "EIGHT_INFRA_DEPENDENCIES_OBSERVED", "unknown_reason": "INFRA_DEPENDENCY_SOURCE_UNAVAILABLE", "refuted_reason": "INFRA_DEPENDENCY_SOURCE_MISMATCH", "next_operation": "RESTORE_INFRA_DEPENDENCY_SOURCE", "depends_on": ["INFRA_RELEASE", "META_ACTIVITY_AUTHORITY"]},
+    {"ordinal": 6, "id": "PRODUCT_PROJECTION", "activity": "ProjectInfraEnvelope", "stage": "PRODUCT_PROJECTION", "step": "PROJECT_INFRA_RELEASE_TO_ENVELOPE", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "closed_reason": "INFRA_ENVELOPE_PROJECTED", "unknown_reason": "INFRA_ENVELOPE_PROJECTION_UNAVAILABLE", "refuted_reason": "INFRA_ENVELOPE_PROJECTION_MISMATCH", "next_operation": "RESTORE_INFRA_ENVELOPE_PROJECTION", "depends_on": ["META_ACTIVITY_AUTHORITY", "INFRA_DEPENDENCY_SOURCE"]},
+    {"ordinal": 7, "id": "EIGHT_FILE_ENVELOPE", "activity": "PublishEightFileInfraEnvelope", "stage": "ENVELOPE", "step": "PUBLISH_EIGHT_FILE_INFRA_ENVELOPE", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "closed_reason": "EIGHT_FILE_INFRA_ENVELOPE_PUBLISHED", "unknown_reason": "EIGHT_FILE_INFRA_ENVELOPE_UNAVAILABLE", "refuted_reason": "EIGHT_FILE_INFRA_ENVELOPE_MISMATCH", "next_operation": "RESTORE_EIGHT_FILE_INFRA_ENVELOPE", "depends_on": ["PRODUCT_PROJECTION"]},
+    {"ordinal": 8, "id": "READ_ONLY_CONFORMANCE", "activity": "ConformInfraEnvelopeReadOnly", "stage": "CONFORMANCE", "step": "CONFORM_INFRA_ENVELOPE_READ_ONLY", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "closed_reason": "KIT_CONFORMER_TEN_OF_TEN", "unknown_reason": "KIT_CONFORMANCE_UNAVAILABLE", "refuted_reason": "KIT_CONFORMANCE_MISMATCH", "next_operation": "RESTORE_KIT_CONFORMANCE", "depends_on": ["EIGHT_FILE_ENVELOPE"]},
+    {"ordinal": 9, "id": "UNKNOWN_CAUSALITY", "activity": "PreserveUnknownCausality", "stage": "UNKNOWN_CAUSALITY", "step": "PRESERVE_MISSING_RECEIPT_FRONTIER", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "closed_reason": "UNKNOWN_FRONTIER_AND_SIX_COORDINATES_PRESERVED", "unknown_reason": "UNKNOWN_FRONTIER_UNAVAILABLE", "refuted_reason": "UNKNOWN_FRONTIER_MALFORMED", "next_operation": "RESTORE_UNKNOWN_FRONTIER_REPORTS", "depends_on": ["READ_ONLY_CONFORMANCE"]},
+    {"ordinal": 10, "id": "DETERMINISTIC_REPLAY", "activity": "VerifyEnvelopeReplay", "stage": "REPLAY", "step": "VERIFY_SOURCE_AND_FILE_REPLAY", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "closed_reason": "SOURCE_AND_FILE_REPLAY_VERIFIED", "unknown_reason": "ENVELOPE_REPLAY_UNAVAILABLE", "refuted_reason": "ENVELOPE_REPLAY_MISMATCH", "next_operation": "RESTORE_DETERMINISTIC_REPLAY", "depends_on": ["EIGHT_FILE_ENVELOPE"]},
+    {"ordinal": 11, "id": "REFUTED_COUNTEREXAMPLES", "activity": "RefuteMalformedCoreReports", "stage": "COUNTEREXAMPLE", "step": "REFUTE_MALFORMED_UNKNOWN_AND_FIXED_POINT", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "closed_reason": "MALFORMED_CORE_REPORTS_REFUTED", "unknown_reason": "REFUTED_REPORTS_UNAVAILABLE", "refuted_reason": "MALFORMED_CORE_REPORT_ACCEPTED", "next_operation": "RESTORE_FAIL_CLOSED_CORE_REPORTS", "depends_on": ["READ_ONLY_CONFORMANCE"]},
+    {"ordinal": 12, "id": "AUTHORITY_BOUNDARY", "activity": "PreserveInfraAuthorityBoundary", "stage": "AUTHORITY", "step": "PRESERVE_INFRA_READ_ONLY_BOUNDARY", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "closed_reason": "INFRA_READ_ONLY_AUTHORITY_PRESERVED", "unknown_reason": "INFRA_AUTHORITY_OBSERVATION_UNAVAILABLE", "refuted_reason": "INFRA_AUTHORITY_ESCALATED", "next_operation": "REMOVE_INFRA_EXECUTION_AUTHORITY", "depends_on": ["UNKNOWN_CAUSALITY", "DETERMINISTIC_REPLAY", "REFUTED_COUNTEREXAMPLES"]}
+  ]
+}

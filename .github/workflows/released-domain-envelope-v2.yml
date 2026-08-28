@@ -1,0 +1,508 @@
+name: Released Domain Envelope v2 Adoption Candidate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  released-domain-envelope-v2:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SUBJECT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      WORK_DIR: /tmp/gooo-released-domain-envelope-v2
+      ARTIFACT_DIR: /tmp/gooo-released-domain-envelope-v2-artifact
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: 1.27.x
+          check-latest: true
+
+      - name: Acquire pinned released inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'status=$?; echo "CI failure in Acquire pinned released inputs: ${BASH_COMMAND} (status ${status})" >&2; exit "$status"' ERR
+          rm -rf "$WORK_DIR" "$ARTIFACT_DIR"
+          mkdir -p "$WORK_DIR/core/bin" "$WORK_DIR/kit" "$WORK_DIR/infra" "$WORK_DIR/reports" "$ARTIFACT_DIR"
+          snapshot() {
+            find . -path './.git' -prune -o -type f ! -path './README.md' -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}'
+          }
+          snapshot > "$WORK_DIR/repository-before.sha256"
+
+          LOCK=contracts/released-domain-envelope-v2-adoption-release-lock-v1.json
+          DENOM=contracts/released-domain-envelope-v2-adoption-denominator-v1.json
+          PACKET=contracts/released-domain-envelope-v2-adoption-packet-v1.json
+          jq -e --arg sha "$SUBJECT_SHA" --arg repo "${{ github.repository }}" \
+            '.schema=="gooo/infra-evidence/released-domain-envelope-v2-adoption-release-lock/v1" and
+             .authority.repository_writes==0 and .authority.local_tests==0 and .authority.local_test_executions==0 and
+             .authority.opentofu_init_executions==0 and .authority.opentofu_plan_executions==0 and .authority.opentofu_apply_executions==0 and .authority.opentofu_test_executions==0 and .authority.opentofu_source_imports==0 and .authority.opentofu_vendor_operations==0 and .authority.opentofu_build_executions==0 and .authority.opentofu_provider_accesses==0 and .authority.opentofu_network_accesses==0 and .authority.opentofu_cloud_accesses==0 and
+             .authority.cross_project_required_gates==0 and
+             ($repo=="kimjooyoon/gooo-infra-evidence" or $repo=="${{ github.repository }}")' "$LOCK" >/dev/null
+          jq -e '.schema=="gooo/infra-evidence/released-domain-envelope-v2-adoption-denominator/v1" and .target_cells==12 and (.cells|length)==12 and ([.cells[].id]|unique|length)==12 and ([.cells[].activity]|unique|length)==12' "$DENOM" >/dev/null
+          jq -e '.schema=="gooo/infra-evidence/released-domain-envelope-v2-adoption-packet/v1" and .adoption.released_domain_observed==0 and .adoption.released_domain_total==1 and .adoption.exact_before_after_improvement_observed==0 and .adoption.exact_before_after_improvement_total==1' "$PACKET" >/dev/null
+
+          download_asset() {
+            local repository=$1
+            local release_json=$2
+            local asset_id=$3
+            local asset_name=$4
+            local expected_size=$5
+            local expected_sha=$6
+            local output=$7
+            jq -e --argjson id "$asset_id" --arg name "$asset_name" --argjson size "$expected_size" \
+              '.assets[] | select(.id==$id) | .name==$name and .size==$size' "$release_json" >/dev/null
+            gh api -H 'Accept: application/octet-stream' "repos/$repository/releases/assets/$asset_id" > "$output"
+            test "$(wc -c < "$output" | tr -d ' ')" = "$expected_size"
+            test "$(sha256sum "$output" | awk '{print $1}')" = "$expected_sha"
+          }
+
+          verify_release() {
+            local repository=$1
+            local tag=$2
+            local release_id=$3
+            local target=$4
+            local output=$5
+            gh api "repos/$repository/releases/tags/$tag" > "$output"
+            jq -e --arg tag "$tag" --argjson release_id "$release_id" --arg target "$target" \
+              '.tag_name==$tag and .id==$release_id and .prerelease==true and .target_commitish != null' "$output" >/dev/null
+            test "$(git ls-remote "https://github.com/$repository.git" "refs/tags/$tag" | awk '{print $1}')" = "$target"
+          }
+
+          core_repository=$(jq -r '.core.repository' "$LOCK")
+          core_tag=$(jq -r '.core.tag' "$LOCK")
+          core_release_id=$(jq -r '.core.release_id' "$LOCK")
+          core_target=$(jq -r '.core.target_commit_sha' "$LOCK")
+          verify_release "$core_repository" "$core_tag" "$core_release_id" "$core_target" "$WORK_DIR/core/release.json"
+          download_asset "$core_repository" "$WORK_DIR/core/release.json" \
+            "$(jq -r '.core.assets.linux.id' "$LOCK")" \
+            "$(jq -r '.core.assets.linux.name' "$LOCK")" \
+            "$(jq -r '.core.assets.linux.size' "$LOCK")" \
+            "$(jq -r '.core.assets.linux.sha256' "$LOCK")" \
+            "$WORK_DIR/core/gooo-linux-amd64.tar.gz"
+          download_asset "$core_repository" "$WORK_DIR/core/release.json" \
+            "$(jq -r '.core.assets.checksums.id' "$LOCK")" \
+            "$(jq -r '.core.assets.checksums.name' "$LOCK")" \
+            "$(jq -r '.core.assets.checksums.size' "$LOCK")" \
+            "$(jq -r '.core.assets.checksums.sha256' "$LOCK")" \
+            "$WORK_DIR/core/SHA256SUMS"
+          (cd "$WORK_DIR/core" && sha256sum -c SHA256SUMS --ignore-missing)
+          tar -xzf "$WORK_DIR/core/gooo-linux-amd64.tar.gz" -C "$WORK_DIR/core/bin"
+          find "$WORK_DIR/core/bin" -type f -name gooo -exec chmod +x {} \;
+          GO0=$(find "$WORK_DIR/core/bin" -type f -name gooo -print -quit)
+          test -n "$GO0"
+          printf '%s\n' "$GO0" > "$WORK_DIR/gooo-path"
+
+          spec_repository=$(jq -r '.interchange_spec.repository' "$LOCK")
+          spec_tag=$(jq -r '.interchange_spec.tag' "$LOCK")
+          spec_release_id=$(jq -r '.interchange_spec.release_id' "$LOCK")
+          spec_target=$(jq -r '.interchange_spec.target_commit_sha' "$LOCK")
+          verify_release "$spec_repository" "$spec_tag" "$spec_release_id" "$spec_target" "$WORK_DIR/kit/release.json"
+          download_asset "$spec_repository" "$WORK_DIR/kit/release.json" \
+            "$(jq -r '.interchange_spec.asset.id' "$LOCK")" \
+            "$(jq -r '.interchange_spec.asset.name' "$LOCK")" \
+            "$(jq -r '.interchange_spec.asset.size' "$LOCK")" \
+            "$(jq -r '.interchange_spec.asset.sha256' "$LOCK")" \
+            "$WORK_DIR/kit/gooo-interchange-consumer-kit-v2.tar.gz"
+          tar -xzf "$WORK_DIR/kit/gooo-interchange-consumer-kit-v2.tar.gz" -C "$WORK_DIR/kit"
+          KIT_HOME="$WORK_DIR/kit/consumer-kit-v2"
+          test -d "$KIT_HOME"
+          (cd "$KIT_HOME" && sha256sum -c SHA256SUMS)
+          jq -e '.schema=="gooo/interchange/released-domain-consumer-kit-manifest/v2" and .kit_version=="v2"' "$KIT_HOME/manifest.json" >/dev/null
+          printf '%s\n' "$KIT_HOME/scripts/conform-released-envelope-v2.sh" > "$WORK_DIR/conformer-path"
+          test -x "$KIT_HOME/scripts/conform-released-envelope-v2.sh"
+
+          infra_repository=$(jq -r '.infra.repository' "$LOCK")
+          infra_tag=$(jq -r '.infra.tag' "$LOCK")
+          infra_release_id=$(jq -r '.infra.release_id' "$LOCK")
+          infra_target=$(jq -r '.infra.target_commit_sha' "$LOCK")
+          verify_release "$infra_repository" "$infra_tag" "$infra_release_id" "$infra_target" "$WORK_DIR/infra/release.json"
+          download_asset "$infra_repository" "$WORK_DIR/infra/release.json" \
+            "$(jq -r '.infra.assets.plan.id' "$LOCK")" \
+            "$(jq -r '.infra.assets.plan.name' "$LOCK")" \
+            "$(jq -r '.infra.assets.plan.size' "$LOCK")" \
+            "$(jq -r '.infra.assets.plan.sha256' "$LOCK")" \
+            "$WORK_DIR/infra/deployment-plan.json"
+          download_asset "$infra_repository" "$WORK_DIR/infra/release.json" \
+            "$(jq -r '.infra.assets.replay.id' "$LOCK")" \
+            "$(jq -r '.infra.assets.replay.name' "$LOCK")" \
+            "$(jq -r '.infra.assets.replay.size' "$LOCK")" \
+            "$(jq -r '.infra.assets.replay.sha256' "$LOCK")" \
+            "$WORK_DIR/infra/semantic-deployment-plan-replay.json"
+          jq -e '.schema=="gooo/infra-evidence/semantic-deployment-plan/v1" and .decision=="DEPLOYMENT_PLAN_GENERATED" and (.dependencies|length)==8 and .summary.activities==6 and .summary.dependency_kinds==4 and .prior_contract.summary.semantic_edges==6 and .prior_contract.summary.openapi_bindings==1 and .prior_contract.summary.terraform_bindings==1 and .prior_contract.summary.deployment_chain_cells==4' "$WORK_DIR/infra/deployment-plan.json" >/dev/null
+          jq -e '.schema=="gooo/infra-evidence/semantic-deployment-plan-replay/v1" and .comparisons_satisfied==.comparisons_total and .mismatches==0' "$WORK_DIR/infra/semantic-deployment-plan-replay.json" >/dev/null
+
+      - name: Resolve twelve released Core activities
+        shell: bash
+        run: |
+          set -euo pipefail
+          gooo=$(cat "$WORK_DIR/gooo-path")
+          source=examples/released-domain-envelope-v2/main.gooo
+          denominator=contracts/released-domain-envelope-v2-adoption-denominator-v1.json
+          core_start_ns=$(date +%s%N)
+          /usr/bin/time -f '%M' -o "$WORK_DIR/core-rss-kib" "$gooo" graph dump "$source" > "$WORK_DIR/core-graph.json"
+          jq -e --argjson expected "$(jq '.target_cells' "$denominator")" '([.nodes[]|select(.kind=="Activity")]|length)==$expected' "$WORK_DIR/core-graph.json" >/dev/null
+          jq -S -n --slurpfile denominator "$denominator" --slurpfile graph "$WORK_DIR/core-graph.json" --arg graph_sha256 "$(sha256sum "$WORK_DIR/core-graph.json" | awk '{print $1}')" '
+            $denominator[0] as $d | $graph[0] as $g |
+            def activity_id($name):
+              [$g.nodes[]|select(.kind=="Activity" and .name==$name)|.id] as $ids |
+              if ($ids|length)==1 then $ids[0] else error("activity binding cardinality mismatch") end;
+            def inputs($activity): [$g.relations[]|select(.predicate=="used" and .subject==$activity)|.object]|unique|sort;
+            def outputs($activity): [$g.relations[]|select(.predicate=="wasGeneratedBy" and .object==$activity)|.subject]|unique|sort;
+            [$d.cells[] as $cell |
+              (activity_id($cell.activity)) as $activity |
+              (inputs($activity)) as $input_entities |
+              {id:$cell.id,activity:$cell.activity,depends_on:($cell.depends_on|sort),activity_id:$activity,input_entities:$input_entities,
+               graph_depends_on:([$d.cells[] as $predecessor |
+                 (activity_id($predecessor.activity)) as $predecessor_activity |
+                 (outputs($predecessor_activity)) as $predecessor_outputs |
+                 select(any($predecessor_outputs[]; . as $output | ($input_entities|index($output))!=null)) |
+                 $predecessor.id]|unique|sort)}] as $bindings |
+            if ($bindings|length)!=$d.target_cells then
+              error("graph dependency binding count does not match the denominator")
+            elif ($bindings|all(.[]; ((.input_entities|length)>0) and (.depends_on==.graph_depends_on)))|not then
+              error("graph dependency bindings do not match the denominator")
+            else {schema:"gooo/infra-evidence/released-domain-envelope-v2-meta-dependency-bindings/v1",verified:true,graph_sha256:$graph_sha256,binding_cells:($bindings|length),binding_edges:([$bindings[].graph_depends_on[]]|length),bindings:$bindings}
+            end' > "$WORK_DIR/core-dependency-bindings.json"
+          mkdir -p "$WORK_DIR/core-resolutions"
+          while IFS=$'\t' read -r ordinal activity; do
+            receipt=$(printf '%s/core-resolutions/%02d-%s.json' "$WORK_DIR" "$ordinal" "$activity")
+            "$gooo" graph resolve-activity "$source" --name "$activity" > "$receipt"
+          done < <(jq -r '.cells[]|[.ordinal,.activity]|@tsv' "$denominator")
+          jq -S -s '.' "$WORK_DIR"/core-resolutions/*.json > "$WORK_DIR/core-receipts.json"
+          jq -e --argjson expected "$(jq '.target_cells' "$denominator")" 'type=="array" and length==$expected and all(.[]; .schema=="gooo/activity-cardinality-resolution/v1" and .decision=="CLOSED" and .occurrences==1 and .claim.state=="CLOSED" and .claim.reason=="ACTIVITY_UNIQUELY_RESOLVED")' "$WORK_DIR/core-receipts.json" >/dev/null
+          core_end_ns=$(date +%s%N)
+          echo $(( (core_end_ns - core_start_ns) / 1000000 )) > "$WORK_DIR/core-wall-ms"
+          echo 1 > "$WORK_DIR/ci-core-graph-executions"
+          jq 'length' "$WORK_DIR/core-receipts.json" > "$WORK_DIR/ci-core-resolution-executions"
+
+      - name: Project, replay, and conform the eight-file envelope
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'status=$?; echo "CI failure in Project, replay, and conform: ${BASH_COMMAND} (status ${status})" >&2; if test -s "$WORK_DIR/conformance.json"; then cat "$WORK_DIR/conformance.json" >&2; fi; exit "$status"' ERR
+          root="$GITHUB_WORKSPACE"
+          denominator=contracts/released-domain-envelope-v2-adoption-denominator-v1.json
+          lock=contracts/released-domain-envelope-v2-adoption-release-lock-v1.json
+          mkdir -p "$WORK_DIR/bundle-a" "$WORK_DIR/bundle-b"
+          start_ns=$(date +%s%N)
+          /usr/bin/time -f '%M' -o "$WORK_DIR/projector-rss-kib" \
+            bash scripts/project-released-domain-envelope-v2.sh "$root" "$WORK_DIR/core-receipts.json" \
+              "$WORK_DIR/infra/deployment-plan.json" "$WORK_DIR/infra/semantic-deployment-plan-replay.json" \
+              "$lock" "$denominator" "$WORK_DIR/bundle-a"
+          end_ns=$(date +%s%N)
+          echo $(( (end_ns - start_ns) / 1000000 )) > "$WORK_DIR/projector-wall-ms"
+          bash scripts/project-released-domain-envelope-v2.sh "$root" "$WORK_DIR/core-receipts.json" \
+            "$WORK_DIR/infra/deployment-plan.json" "$WORK_DIR/infra/semantic-deployment-plan-replay.json" \
+            "$lock" "$denominator" "$WORK_DIR/bundle-b"
+
+          replay_start_ns=$(date +%s%N)
+          files=(checksums.txt conformance.json evidence.ndjson project.json relations.ndjson replay.json resolutions.ndjson unknowns.ndjson)
+          comparisons=0
+          mismatches=0
+          for file in "${files[@]}"; do
+            comparisons=$((comparisons + 1))
+            if ! cmp -s "$WORK_DIR/bundle-a/$file" "$WORK_DIR/bundle-b/$file"; then
+              mismatches=$((mismatches + 1))
+            fi
+          done
+          jq -S -n --argjson total "$comparisons" --argjson mismatches "$mismatches" \
+            '{schema:"gooo/infra-evidence/released-domain-envelope-v2-file-replay/v1",comparisons_total:$total,comparisons_satisfied:($total-$mismatches),mismatches:$mismatches}' > "$WORK_DIR/file-replay.json"
+          test "$mismatches" = 0
+          replay_end_ns=$(date +%s%N)
+          echo $(( (replay_end_ns - replay_start_ns) / 1000000 )) > "$WORK_DIR/ci-replay-wall-ms"
+          echo 1 > "$WORK_DIR/ci-replay-executions"
+
+          conformer=$(cat "$WORK_DIR/conformer-path")
+          start_ns=$(date +%s%N)
+          /usr/bin/time -f '%M' -o "$WORK_DIR/conformer-rss-kib" \
+            bash "$conformer" "$WORK_DIR/bundle-a" "$WORK_DIR/bundle-b" "$WORK_DIR/conformance.json"
+          end_ns=$(date +%s%N)
+          echo $(( (end_ns - start_ns) / 1000000 )) > "$WORK_DIR/conformer-wall-ms"
+          echo 1 > "$WORK_DIR/ci-conformance-executions"
+          jq -e '.decision=="CONFORMANT" and .summary.closed==10 and .summary.total==10 and .summary.refuted==0 and .summary.unknown==0 and .summary.external_required_gates==0' "$WORK_DIR/conformance.json" >/dev/null
+
+      - name: Exercise UNKNOWN and REFUTED reports, merge report digests, then evaluate normal
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$GITHUB_WORKSPACE"
+          denominator=contracts/released-domain-envelope-v2-adoption-denominator-v1.json
+          target_activity=$(jq -r '.cells[]|select(.id=="INFRA_DEPENDENCY_SOURCE")|.activity' "$denominator")
+          earlier_activity=$(jq -r '.cells[]|select(.id=="INTERCHANGE_SPEC_RELEASE")|.activity' "$denominator")
+          jq --arg activity "$target_activity" 'map(select(.selector.name!=$activity))' "$WORK_DIR/core-receipts.json" > "$WORK_DIR/core-missing.json"
+          jq --arg activity "$target_activity" 'map(if .selector.name==$activity then (.decision="UNKNOWN" | .occurrences=0 | .claim.state="UNKNOWN" | .claim.reason="ACTIVITY_NOT_FOUND" | .claim.stage="RESOLUTION" | .claim.step="RESOLVE_ACTIVITY_CARDINALITY" | .claim.unknown_class="DIRECT_MISSING" | .claim.next_operation="PROVIDE_ACTIVITY_RESOLUTION_RECEIPT" | .claim.blocked_by=[]) else . end)' "$WORK_DIR/core-receipts.json" > "$WORK_DIR/core-valid-unknown.json"
+          jq --arg activity "$target_activity" 'map(if .selector.name==$activity then (.decision="UNKNOWN" | .occurrences=1 | .claim.state="CLOSED" | .claim.reason="ACTIVITY_NOT_FOUND") else . end)' "$WORK_DIR/core-receipts.json" > "$WORK_DIR/core-malformed-unknown.json"
+          jq --arg activity "$target_activity" 'map(if .selector.name==$activity then .decision="FIXED_POINT" else . end)' "$WORK_DIR/core-receipts.json" > "$WORK_DIR/core-fixed-point.json"
+          jq --arg target "$target_activity" --arg earlier "$earlier_activity" 'map(if .selector.name==$target then .decision="UNRECOGNIZED_TOP_LEVEL_DECISION" elif .selector.name==$earlier then (.decision="UNKNOWN" | .occurrences=0 | .claim.state="UNKNOWN" | .claim.reason="ACTIVITY_NOT_FOUND" | .claim.stage="RESOLUTION" | .claim.step="RESOLVE_ACTIVITY_CARDINALITY" | .claim.unknown_class="DIRECT_MISSING" | .claim.next_operation="PROVIDE_ACTIVITY_RESOLUTION_RECEIPT" | .claim.blocked_by=[]) else . end)' "$WORK_DIR/core-receipts.json" > "$WORK_DIR/core-unknown-decision.json"
+
+          lines() { awk 'END {print NR+0}' "$1"; }
+          bundle_digest=$(cd "$WORK_DIR/bundle-a" && sha256sum checksums.txt conformance.json evidence.ndjson project.json relations.ndjson replay.json resolutions.ndjson unknowns.ndjson | sha256sum | awk '{print $1}')
+          subject_digest=$(cat "$WORK_DIR/repository-before.sha256")
+          contract_digest=$(sha256sum "$denominator" contracts/released-domain-envelope-v2-adoption-release-lock-v1.json contracts/released-domain-envelope-v2-adoption-packet-v1.json | sha256sum | awk '{print $1}')
+          toolchain_digest=$(printf '%s\n' "$(go env GOVERSION)" "$(jq -r '.core.assets.linux.sha256' contracts/released-domain-envelope-v2-adoption-release-lock-v1.json)" "$(jq -r '.interchange_spec.asset.sha256' contracts/released-domain-envelope-v2-adoption-release-lock-v1.json)" | sha256sum | awk '{print $1}')
+          upstream_subject_digest=$(jq -cS '.infra|{repository,release_id,target_commit_sha}' contracts/released-domain-envelope-v2-adoption-release-lock-v1.json | sha256sum | awk '{print $1}')
+          upstream_contract_digest=$(jq -cS '.infra.assets|{plan,replay}' contracts/released-domain-envelope-v2-adoption-release-lock-v1.json | sha256sum | awk '{print $1}')
+          upstream_toolchain_digest=$(jq -cnS --arg replay_asset_sha256 "$(jq -r '.infra.assets.replay.sha256' contracts/released-domain-envelope-v2-adoption-release-lock-v1.json)" --slurpfile receipt "$WORK_DIR/infra/semantic-deployment-plan-replay.json" '{replay_asset_sha256:$replay_asset_sha256,receipt_schema:$receipt[0].schema,comparisons_total:$receipt[0].comparisons_total}' | sha256sum | awk '{print $1}')
+          facts_base="$WORK_DIR/facts-pre.json"
+          jq -S -n \
+            --arg subject "$SUBJECT_SHA" \
+            --arg subject_digest "$subject_digest" \
+            --arg contract_digest "$contract_digest" \
+            --arg toolchain_digest "$toolchain_digest" \
+            --arg upstream_subject_digest "$upstream_subject_digest" \
+            --arg upstream_contract_digest "$upstream_contract_digest" \
+            --arg upstream_toolchain_digest "$upstream_toolchain_digest" \
+            --arg core_target "$(jq -r '.core.target_commit_sha' contracts/released-domain-envelope-v2-adoption-release-lock-v1.json)" \
+            --arg core_asset "$(jq -r '.core.assets.linux.sha256' contracts/released-domain-envelope-v2-adoption-release-lock-v1.json)" \
+            --arg spec_target "$(jq -r '.interchange_spec.target_commit_sha' contracts/released-domain-envelope-v2-adoption-release-lock-v1.json)" \
+            --arg spec_asset "$(jq -r '.interchange_spec.asset.sha256' contracts/released-domain-envelope-v2-adoption-release-lock-v1.json)" \
+            --arg infra_target "$(jq -r '.infra.target_commit_sha' contracts/released-domain-envelope-v2-adoption-release-lock-v1.json)" \
+            --arg infra_asset "$(jq -r '.infra.assets.plan.sha256' contracts/released-domain-envelope-v2-adoption-release-lock-v1.json)" \
+            --arg bundle_digest "$bundle_digest" \
+            --arg projection_owner "$(jq -r '.authority.projection_owner' "$WORK_DIR/bundle-a/project.json")" \
+            --arg graph_sha256 "$(jq -r '.graph_sha256' "$WORK_DIR/core-dependency-bindings.json")" \
+            --argjson activities "$(jq '[.nodes[]|select(.kind=="Activity")]|length' "$WORK_DIR/core-graph.json")" \
+            --argjson resolutions "$(jq 'length' "$WORK_DIR/core-receipts.json")" \
+            --argjson graph_bindings_verified "$(jq '.verified' "$WORK_DIR/core-dependency-bindings.json")" \
+            --argjson binding_cells "$(jq '.binding_cells' "$WORK_DIR/core-dependency-bindings.json")" \
+            --argjson binding_edges "$(jq '.binding_edges' "$WORK_DIR/core-dependency-bindings.json")" \
+            --argjson prior_relations "$(jq '.dependencies|length' "$WORK_DIR/infra/deployment-plan.json")" \
+            --argjson prior_semantic_edges "$(jq '.prior_contract.summary.semantic_edges' "$WORK_DIR/infra/deployment-plan.json")" \
+            --argjson semantic_activities "$(jq '.summary.activities' "$WORK_DIR/infra/deployment-plan.json")" \
+            --argjson dependency_kinds "$(jq '.summary.dependency_kinds' "$WORK_DIR/infra/deployment-plan.json")" \
+            --argjson prior_openapi "$(jq '.prior_contract.summary.openapi_bindings' "$WORK_DIR/infra/deployment-plan.json")" \
+            --argjson prior_terraform "$(jq '.prior_contract.summary.terraform_bindings' "$WORK_DIR/infra/deployment-plan.json")" \
+            --argjson prior_chain "$(jq '.prior_contract.summary.deployment_chain_cells' "$WORK_DIR/infra/deployment-plan.json")" \
+            --argjson relation_lines "$(lines "$WORK_DIR/bundle-a/relations.ndjson")" \
+            --argjson evidence_lines "$(lines "$WORK_DIR/bundle-a/evidence.ndjson")" \
+            --argjson resolution_lines "$(lines "$WORK_DIR/bundle-a/resolutions.ndjson")" \
+            --argjson unknown_lines "$(lines "$WORK_DIR/bundle-a/unknowns.ndjson")" \
+            --argjson files "$(find "$WORK_DIR/bundle-a" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d ' ')" \
+            --argjson conformer_closed "$(jq '.summary.closed' "$WORK_DIR/conformance.json")" \
+            --argjson conformer_total "$(jq '.summary.total' "$WORK_DIR/conformance.json")" \
+            --arg conformer_decision "$(jq -r '.decision' "$WORK_DIR/conformance.json")" \
+            --argjson source_replay "$(jq 'if .comparisons_satisfied==.comparisons_total and .mismatches==0 then 1 else 0 end' "$WORK_DIR/infra/semantic-deployment-plan-replay.json")" \
+            --argjson file_replay "$(jq '.comparisons_satisfied' "$WORK_DIR/file-replay.json")" \
+            --argjson projected "$(test -s "$WORK_DIR/bundle-a/project.json" && printf 1 || printf 0)" \
+            '{schema:"gooo/infra-evidence/released-domain-envelope-v2-adoption-facts/v1",subject_sha:$subject,
+              release_lock_verified:true,
+              core_release:{verified:true,target_commit_sha:$core_target,asset_sha256:$core_asset},
+              interchange_spec_release:{verified:true,target_commit_sha:$spec_target,asset_sha256:$spec_asset},
+              infra_release:{verified:true,target_commit_sha:$infra_target,asset_sha256:$infra_asset},
+              meta_activity_authority:{activities_observed:$activities,resolutions_observed:$resolutions,graph_dependency_bindings_verified:$graph_bindings_verified,dependency_bindings_observed:$binding_cells,dependency_edges_observed:$binding_edges,graph_sha256:$graph_sha256},
+              infra_dependency_source:{relations_observed:$prior_relations,prior_semantic_edges:$prior_semantic_edges,semantic_activities_observed:$semantic_activities,dependency_kinds_observed:$dependency_kinds,prior_openapi_bindings:$prior_openapi,prior_terraform_bindings:$prior_terraform,prior_deployment_chain_cells:$prior_chain,terraform_evidence:{iac_engine:"TERRAFORM",reclassified_as_opentofu:false},opentofu_adoption:{observed:0,total:1,state:"UNKNOWN",next_operation:"PROVIDE_IMMUTABLE_OPENTOFU_JSON_RECEIPT"},opentofu_receipt:{receipt_state:"UNOBSERVED",iac_engine:null,iac_engine_version:null,immutable_release_id:null,binary_digest:null,machine_readable_format_version:null,engine_inferred_from_json_key:false,next_operation:"PROVIDE_IMMUTABLE_OPENTOFU_JSON_RECEIPT"}},
+              product_projection:{observed:($projected==1),bundle_digest:$bundle_digest,projection_owner:$projection_owner},
+              envelope:{files:$files,relations:$relation_lines,evidence:$evidence_lines,resolutions:$resolution_lines,unknowns:$unknown_lines},
+              conformer:{decision:$conformer_decision,closed:$conformer_closed,total:$conformer_total},
+              replay:{source_satisfied:$source_replay,file_satisfied:$file_replay},
+              unknown_causality:null,refuted_counterexamples:null,opentofu_boundary_cases:null,
+              paths:{normal:null,unknown:null,refuted:null},
+              authority:{repository_writes:0,local_tests:0,local_test_executions:0,cross_project_required_gates:0,kit_source_checkout:0,conformer_copy:0,opentofu_init_executions:0,opentofu_plan_executions:0,opentofu_apply_executions:0,opentofu_test_executions:0,opentofu_source_imports:0,opentofu_vendor_operations:0,opentofu_build_executions:0,opentofu_provider_accesses:0,opentofu_network_accesses:0,opentofu_cloud_accesses:0,forbidden_authority_escalations:[]},
+              upstream_test_receipts:{receipt_state:"AVAILABLE_NOT_REUSED",receipt_kind:"INFRA_V0_8_SEMANTIC_DEPLOYMENT_PLAN_REPLAY",subject_digest:$upstream_subject_digest,subject_digest_basis:"LOCK_INFRA_RELEASE_IDENTITY",contract_digest:$upstream_contract_digest,contract_digest_basis:"LOCK_INFRA_PLAN_AND_REPLAY_ASSETS",toolchain_digest:$upstream_toolchain_digest,toolchain_digest_basis:"REPLAY_RECEIPT_SCHEMA_AND_IMMUTABLE_ASSET",command_digest:null,current_subject_digest:$subject_digest,current_contract_digest:$contract_digest,current_toolchain_digest:$toolchain_digest,current_command_digest:null,reuse_decision:"UNKNOWN",reason:"COMMAND_DIGEST_UNAVAILABLE",next_operation:"RECORD_CANONICAL_REPLAY_COMMAND_DIGEST"},
+              artifacts:{product_projection:$projected,envelope:$files,relations:$relation_lines,evidence:$evidence_lines,resolutions:$resolution_lines,conformer:$conformer_closed,source_replay:$source_replay,file_replay:$file_replay},
+              utility:{released_domain_adoption_observed:0,released_domain_adoption_total:1,external_utility_observed:0,external_utility_total:1,exact_before_after_improvement_observed:0,exact_before_after_improvement_total:1,state:"UNKNOWN",reason:"NO_USER_EVIDENCE_OF_EXTERNAL_UTILITY_OR_EXACT_IMPROVEMENT"},
+              metrics:{go_setup:"1.27.x",bundle_digest:$bundle_digest,go_fix_executed:0,repository_writes:0,local_tests:0,local_test_executions:0,cross_project_required_gates:0,ci_build_executions:0,ci_build_wall_ms:0,ci_build_reason:"NO_PRODUCT_BUILD_REQUIRED",upstream_test_receipts_available:1,upstream_test_receipts_reused:0,upstream_test_receipts_unknown:1,stale_receipts:0,reexecutions_skipped_due_to_exact_receipt:0}}' > "$facts_base"
+          jq '.infra_dependency_source.opentofu_receipt |= (.receipt_state="OBSERVED" | .iac_engine="UNKNOWN")' "$facts_base" > "$WORK_DIR/facts-iac-unknown-engine.json"
+          jq '.infra_dependency_source.opentofu_receipt |= (.receipt_state="UNRECOGNIZED_TOP_LEVEL_STATE" | .iac_engine="OPENTOFU" | .iac_engine_version="1.0.0" | .immutable_release_id="counterexample" | .binary_digest="0000000000000000000000000000000000000000000000000000000000000000" | .machine_readable_format_version="1.0" | .engine_inferred_from_json_key=false)' "$facts_base" > "$WORK_DIR/facts-iac-unknown-top-level.json"
+          scenario_executions=0
+          scenario_start_ns=$(date +%s%N)
+          evaluate() {
+            local receipts=$1
+            local report=$2
+            local phase=$3
+            local claim_cell=${4:-}
+            local facts=${5:-$facts_base}
+            bash scripts/evaluate-released-domain-envelope-v2.sh "$root" "$denominator" "$receipts" "$facts" \
+              "$WORK_DIR/bundle-a" "$WORK_DIR/conformance.json" "$report" "$phase" "$claim_cell"
+            scenario_executions=$((scenario_executions + 1))
+          }
+          evaluate "$WORK_DIR/core-missing.json" "$WORK_DIR/unknown-missing.json" unknown-missing
+          dependency_claim_cell=$(jq -r '.cells[]|select(.id=="PRODUCT_PROJECTION")|.id' "$denominator")
+          evaluate "$WORK_DIR/core-valid-unknown.json" "$WORK_DIR/unknown-dependency-blocked.json" unknown-dependency-blocked "$dependency_claim_cell"
+          evaluate "$WORK_DIR/core-malformed-unknown.json" "$WORK_DIR/refuted-malformed-unknown.json" refuted-malformed-unknown
+          evaluate "$WORK_DIR/core-fixed-point.json" "$WORK_DIR/refuted-fixed-point.json" refuted-fixed-point
+          evaluate "$WORK_DIR/core-unknown-decision.json" "$WORK_DIR/refuted-unknown-decision.json" refuted-unknown-decision
+          scenario_end_ns=$(date +%s%N)
+          echo "$scenario_executions" > "$WORK_DIR/ci-scenario-executions"
+          echo $(( (scenario_end_ns - scenario_start_ns) / 1000000 )) > "$WORK_DIR/ci-scenario-wall-ms"
+
+          opentofu_boundary_start_ns=$(date +%s%N)
+          evaluate_opentofu_boundary() {
+            local facts=$1
+            local report=$2
+            local phase=$3
+            bash scripts/evaluate-released-domain-envelope-v2.sh "$root" "$denominator" "$WORK_DIR/core-receipts.json" "$facts" \
+              "$WORK_DIR/bundle-a" "$WORK_DIR/conformance.json" "$report" "$phase"
+          }
+          evaluate_opentofu_boundary "$WORK_DIR/facts-iac-unknown-engine.json" "$WORK_DIR/refuted-iac-unknown-engine.json" opentofu-unknown-engine
+          evaluate_opentofu_boundary "$WORK_DIR/facts-iac-unknown-top-level.json" "$WORK_DIR/refuted-iac-unknown-top-level.json" opentofu-unknown-top-level
+          opentofu_boundary_end_ns=$(date +%s%N)
+          echo $(( (opentofu_boundary_end_ns - opentofu_boundary_start_ns) / 1000000 )) > "$WORK_DIR/ci-opentofu-boundary-wall-ms"
+
+          jq -e '.decision=="INCOMPLETE" and .summary==(.summary|.closed=4|.unknown=8|.refuted=0) and .claim.state=="UNKNOWN" and .claim.unknown_class=="DIRECT_MISSING" and .claim.blocked_by==[] and .claim.reason=="CORE_ACTIVITY_RESOLUTION_RECEIPT_UNAVAILABLE" and ([.cells[]|select(.reason=="DEPENDENCY_BLOCKED")]|length)==5' "$WORK_DIR/unknown-missing.json" >/dev/null
+          jq -e '.decision=="INCOMPLETE" and .summary==(.summary|.closed=4|.unknown=8|.refuted=0) and .claim_cell=="PRODUCT_PROJECTION" and .claim.state=="UNKNOWN" and .claim.reason=="DEPENDENCY_BLOCKED" and .claim.unknown_class=="DEPENDENCY_BLOCKED" and .claim.blocked_by==["INFRA_DEPENDENCY_SOURCE"] and ([.cells[]|select(.id=="INFRA_DEPENDENCY_SOURCE")|.core_resolution.unknown_class=="DIRECT_MISSING" and .core_resolution.blocked_by==[]]|length)==1' "$WORK_DIR/unknown-dependency-blocked.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .summary==(.summary|.closed=4|.unknown=0|.refuted=8) and .claim.state=="REFUTED" and .claim.reason=="MALFORMED_CORE_UNKNOWN" and ([.cells[]|select(.state=="UNKNOWN")]|length)==0' "$WORK_DIR/refuted-malformed-unknown.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .summary==(.summary|.closed=4|.unknown=0|.refuted=8) and .claim.state=="REFUTED" and .claim.reason=="UNRECOGNIZED_CORE_ACTIVITY_RESOLUTION_DECISION" and ([.cells[]|select(.state=="UNKNOWN")]|length)==0' "$WORK_DIR/refuted-fixed-point.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .summary==(.summary|.closed=2|.unknown=2|.refuted=8) and .claim.state=="REFUTED" and .claim.reason=="UNRECOGNIZED_CORE_ACTIVITY_RESOLUTION_DECISION" and ([.cells[]|select(.state=="UNKNOWN")|.id]|sort)==["INTERCHANGE_SPEC_RELEASE","META_ACTIVITY_AUTHORITY"]' "$WORK_DIR/refuted-unknown-decision.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .summary==(.summary|.closed=4|.unknown=0|.refuted=8) and .claim.state=="REFUTED" and .claim.reason=="UNRECOGNIZED_IAC_ENGINE"' "$WORK_DIR/refuted-iac-unknown-engine.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .summary==(.summary|.closed=4|.unknown=0|.refuted=8) and .claim.state=="REFUTED" and .claim.reason=="UNRECOGNIZED_OPENTOFU_RECEIPT_STATE"' "$WORK_DIR/refuted-iac-unknown-top-level.json" >/dev/null
+
+          unknown_digest_a=$(sha256sum "$WORK_DIR/unknown-missing.json" | awk '{print $1}')
+          unknown_digest_b=$(sha256sum "$WORK_DIR/unknown-dependency-blocked.json" | awk '{print $1}')
+          refuted_digest_a=$(sha256sum "$WORK_DIR/refuted-malformed-unknown.json" | awk '{print $1}')
+          refuted_digest_b=$(sha256sum "$WORK_DIR/refuted-fixed-point.json" | awk '{print $1}')
+          refuted_digest_c=$(sha256sum "$WORK_DIR/refuted-unknown-decision.json" | awk '{print $1}')
+          refuted_digest_d=$(sha256sum "$WORK_DIR/refuted-iac-unknown-engine.json" | awk '{print $1}')
+          refuted_digest_e=$(sha256sum "$WORK_DIR/refuted-iac-unknown-top-level.json" | awk '{print $1}')
+          unknown_coords=$(jq -s --argjson expected_coordinates "$(jq '.expected.unknown_coordinates' "$denominator")" --argjson expected_reports "$(jq '.expected.unknown_paths' "$denominator")" '
+            [ .[] | .claim | [.stage,.step,.reason,.unknown_class,.next_operation,.blocked_by] | map(select(. != null)) | length ] as $counts |
+            if ($counts|length)==$expected_reports and ($counts|all(.[]; .==$expected_coordinates)) then $counts[0]
+            else error("UNKNOWN coordinate field set is incomplete") end' \
+            "$WORK_DIR/unknown-missing.json" "$WORK_DIR/unknown-dependency-blocked.json")
+          direct_missing=$(jq 'if .claim.unknown_class=="DIRECT_MISSING" then 1 else 0 end' "$WORK_DIR/unknown-missing.json")
+          dependency_blocked=$(jq 'if .claim.unknown_class=="DEPENDENCY_BLOCKED" then 1 else 0 end' "$WORK_DIR/unknown-dependency-blocked.json")
+          normal_paths=$(jq -n --slurpfile conformer "$WORK_DIR/conformance.json" --slurpfile replay "$WORK_DIR/file-replay.json" 'if $conformer[0].decision=="CONFORMANT" and $replay[0].comparisons_satisfied==$replay[0].comparisons_total and $replay[0].mismatches==0 then 1 else 0 end')
+          unknown_paths=$(jq -n --slurpfile missing "$WORK_DIR/unknown-missing.json" --slurpfile blocked "$WORK_DIR/unknown-dependency-blocked.json" '[$missing[0],$blocked[0]]|map(select(.decision=="INCOMPLETE" and .claim.state=="UNKNOWN"))|length')
+          refuted_paths=$(jq -n --slurpfile malformed "$WORK_DIR/refuted-malformed-unknown.json" --slurpfile fixed "$WORK_DIR/refuted-fixed-point.json" --slurpfile unknown "$WORK_DIR/refuted-unknown-decision.json" '[$malformed[0],$fixed[0],$unknown[0]]|map(select(.decision=="FAIL_CLOSED" and .claim.state=="REFUTED"))|length')
+          opentofu_boundary_cases=$(jq -n --slurpfile engine "$WORK_DIR/refuted-iac-unknown-engine.json" --slurpfile top "$WORK_DIR/refuted-iac-unknown-top-level.json" '[$engine[0],$top[0]]|map(select(.decision=="FAIL_CLOSED" and .claim.state=="REFUTED"))|length')
+          echo "$opentofu_boundary_cases" > "$WORK_DIR/ci-opentofu-boundary-executions"
+          jq --arg a "$unknown_digest_a" --arg b "$unknown_digest_b" --arg c "$refuted_digest_a" --arg d "$refuted_digest_b" --arg e "$refuted_digest_c" --arg f "$refuted_digest_d" --arg g "$refuted_digest_e" \
+            --argjson coords "$unknown_coords" --argjson direct "$direct_missing" --argjson blocked "$dependency_blocked" --argjson normal "$normal_paths" --argjson unknown "$unknown_paths" --argjson refuted "$refuted_paths" --argjson opentofu_boundary_cases "$opentofu_boundary_cases" --argjson opentofu_boundary_total "$(jq '.expected.opentofu_boundary_cases' "$denominator")" \
+            '.unknown_causality={reports_observed:2,report_digests:[$a,$b],coordinates_observed:$coords,direct_missing_observed:$direct,dependency_blocked_observed:$blocked} |
+             .refuted_counterexamples={reports_observed:3,report_digests:[$c,$d,$e],malformed_unknown_state:"REFUTED",fixed_point_state:"REFUTED",unknown_top_level_state:"REFUTED"} |
+             .opentofu_boundary_cases={executed:$opentofu_boundary_cases,total:$opentofu_boundary_total,refuted:$opentofu_boundary_cases,report_digests:[$f,$g],unknown_engine_state:"REFUTED",unrecognized_top_level_state:"REFUTED"} |
+             .paths={normal:$normal,unknown:$unknown,refuted:$refuted}' \
+            "$facts_base" > "$WORK_DIR/facts.json"
+
+      - name: Record measured artifact inventory and authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          lines_for() { awk 'END {print NR+0}' "$1"; }
+          find . -path './.git' -prune -o -type f ! -path './README.md' -print0 | sort -z |
+            while IFS= read -r -d '' file; do
+              case "$file" in
+                *.go) language=Go ;;
+                *.gooo) language=Gooo ;;
+                *) continue ;;
+              esac
+              jq -S -n --arg path "${file#./}" --arg language "$language" --argjson lines "$(lines_for "$file")" '{path:$path,language:$language,physical_lines:$lines}'
+            done > "$WORK_DIR/source-lines.ndjson"
+          regular_files=$(find . -path './.git' -prune -o -type f ! -path './README.md' -print | wc -l | tr -d ' ')
+          descendant_directories=$(find . -path './.git' -prune -o -mindepth 1 -type d -print | wc -l | tr -d ' ')
+          module_roots=$(find . -path './.git' -prune -o -name go.mod -print | sed 's#^\./##' | sort | jq -R -s 'split("\n")|map(select(length>0) and .)')
+          go_files=$(jq -s '[.[]|select(.language=="Go")]|length' "$WORK_DIR/source-lines.ndjson")
+          go_lines=$(jq -s '[.[]|select(.language=="Go")|.physical_lines]|add//0' "$WORK_DIR/source-lines.ndjson")
+          gooo_files=$(jq -s '[.[]|select(.language=="Gooo")]|length' "$WORK_DIR/source-lines.ndjson")
+          gooo_lines=$(jq -s '[.[]|select(.language=="Gooo")|.physical_lines]|add//0' "$WORK_DIR/source-lines.ndjson")
+          go_version=$(go env GOVERSION)
+          ci_core_graph_executions=$(cat "$WORK_DIR/ci-core-graph-executions")
+          ci_core_resolution_executions=$(cat "$WORK_DIR/ci-core-resolution-executions")
+          ci_core_phase_executions=$((ci_core_graph_executions + ci_core_resolution_executions))
+          ci_core_wall_ms=$(cat "$WORK_DIR/core-wall-ms")
+          ci_conformance_executions=$(cat "$WORK_DIR/ci-conformance-executions")
+          ci_conformance_wall_ms=$(cat "$WORK_DIR/conformer-wall-ms")
+          ci_scenario_executions=$(cat "$WORK_DIR/ci-scenario-executions")
+          ci_scenario_wall_ms=$(cat "$WORK_DIR/ci-scenario-wall-ms")
+          ci_opentofu_boundary_executions=$(cat "$WORK_DIR/ci-opentofu-boundary-executions")
+          ci_opentofu_boundary_wall_ms=$(cat "$WORK_DIR/ci-opentofu-boundary-wall-ms")
+          ci_replay_executions=$(cat "$WORK_DIR/ci-replay-executions")
+          ci_replay_wall_ms=$(cat "$WORK_DIR/ci-replay-wall-ms")
+          current_subject_checks=$((ci_core_phase_executions + ci_conformance_executions + ci_scenario_executions + ci_opentofu_boundary_executions + ci_replay_executions))
+          jq -S -n \
+            --arg subject "$SUBJECT_SHA" --arg go_version "$go_version" \
+            --argjson regular_files "$regular_files" --argjson descendant_directories "$descendant_directories" \
+            --argjson go_files "$go_files" --argjson go_lines "$go_lines" \
+            --argjson gooo_files "$gooo_files" --argjson gooo_lines "$gooo_lines" \
+            --argjson module_roots "$module_roots" \
+            --argjson core_wall_ms "$ci_core_wall_ms" --argjson projector_wall_ms "$(cat "$WORK_DIR/projector-wall-ms")" --argjson conformer_wall_ms "$(cat "$WORK_DIR/conformer-wall-ms")" \
+            --argjson core_peak_rss_kib "$(cat "$WORK_DIR/core-rss-kib")" --argjson projector_peak_rss_kib "$(cat "$WORK_DIR/projector-rss-kib")" --argjson conformer_peak_rss_kib "$(cat "$WORK_DIR/conformer-rss-kib")" \
+            --argjson ci_core_graph_executions "$ci_core_graph_executions" --argjson ci_core_resolution_executions "$ci_core_resolution_executions" --argjson ci_core_phase_executions "$ci_core_phase_executions" --argjson ci_core_wall_ms "$ci_core_wall_ms" \
+            --argjson ci_conformance_executions "$ci_conformance_executions" --argjson ci_conformance_wall_ms "$ci_conformance_wall_ms" \
+            --argjson ci_scenario_executions "$ci_scenario_executions" --argjson ci_scenario_wall_ms "$ci_scenario_wall_ms" \
+            --argjson ci_opentofu_boundary_executions "$ci_opentofu_boundary_executions" --argjson ci_opentofu_boundary_wall_ms "$ci_opentofu_boundary_wall_ms" \
+            --argjson ci_replay_executions "$ci_replay_executions" --argjson ci_replay_wall_ms "$ci_replay_wall_ms" \
+            --argjson current_subject_checks "$current_subject_checks" \
+            '{schema:"gooo/infra-evidence/released-domain-envelope-v2-adoption-runtime/v1",subject_sha:$subject,go_setup:"1.27.x",go_version:$go_version,
+              inventory:{regular_files:$regular_files,descendant_directories:$descendant_directories,root_readme_excluded:true,module_roots:$module_roots,go_fix_roots:[],go_fix_executed:0,go:{files:$go_files,physical_lines:$go_lines},gooo:{files:$gooo_files,physical_lines:$gooo_lines},per_file_source_lines:"source-lines.ndjson"},
+              measurements:{core_wall_ms:$core_wall_ms,projector_wall_ms:$projector_wall_ms,conformer_wall_ms:$conformer_wall_ms,core_peak_rss_kib:$core_peak_rss_kib,projector_peak_rss_kib:$projector_peak_rss_kib,conformer_peak_rss_kib:$conformer_peak_rss_kib,ci_build_executions:0,ci_build_wall_ms:0,ci_build_reason:"NO_PRODUCT_BUILD_REQUIRED",ci_core_graph_executions:$ci_core_graph_executions,ci_core_resolution_executions:$ci_core_resolution_executions,ci_core_phase_executions:$ci_core_phase_executions,ci_core_wall_ms:$ci_core_wall_ms,ci_conformance_executions:$ci_conformance_executions,ci_conformance_wall_ms:$ci_conformance_wall_ms,ci_scenario_executions:$ci_scenario_executions,ci_scenario_wall_ms:$ci_scenario_wall_ms,ci_opentofu_boundary_executions:$ci_opentofu_boundary_executions,ci_opentofu_boundary_wall_ms:$ci_opentofu_boundary_wall_ms,ci_replay_executions:$ci_replay_executions,ci_replay_wall_ms:$ci_replay_wall_ms,upstream_test_receipts_available:1,upstream_test_receipts_reused:0,upstream_test_receipts_unknown:1,current_subject_checks_executed:$current_subject_checks,stale_receipts:0,reexecutions_skipped_due_to_exact_receipt:0},
+              authority:{repository_writes:0,local_tests:0,local_test_executions:0,cross_project_required_gates:0,kit_source_checkout:0,conformer_copy:0,opentofu_init_executions:0,opentofu_plan_executions:0,opentofu_apply_executions:0,opentofu_test_executions:0,opentofu_source_imports:0,opentofu_vendor_operations:0,opentofu_build_executions:0,opentofu_provider_accesses:0,opentofu_network_accesses:0,opentofu_cloud_accesses:0,terraform_execution_authorized:false,openapi_generation_authorized:false,provider_implementation_authorized:false,deployment_execution_authorized:false},
+              utility:{released_adoption_observed:0,released_adoption_total:1,external_utility_observed:0,external_utility_total:1,exact_before_after_improvement_observed:0,exact_before_after_improvement_total:1,state:"UNKNOWN",reason:"NO_USER_EVIDENCE_OF_EXTERNAL_UTILITY_OR_EXACT_IMPROVEMENT"}}' > "$WORK_DIR/runtime.json"
+          jq --argjson metrics "$(jq '.measurements' "$WORK_DIR/runtime.json")" \
+            --arg go_setup "$(jq -r '.go_setup' "$WORK_DIR/runtime.json")" \
+            --argjson inventory "$(jq '.inventory' "$WORK_DIR/runtime.json")" \
+            '.metrics=$metrics | .metrics.go_setup=$go_setup | .metrics.inventory=$inventory' "$WORK_DIR/facts.json" > "$WORK_DIR/facts-with-runtime.json"
+          mv "$WORK_DIR/facts-with-runtime.json" "$WORK_DIR/facts.json"
+          bash scripts/evaluate-released-domain-envelope-v2.sh "$GITHUB_WORKSPACE" contracts/released-domain-envelope-v2-adoption-denominator-v1.json "$WORK_DIR/core-receipts.json" "$WORK_DIR/facts.json" \
+            "$WORK_DIR/bundle-a" "$WORK_DIR/conformance.json" "$WORK_DIR/normal.json" normal
+          jq -e --arg subject "$SUBJECT_SHA" \
+            --argjson cells "$(jq '.target_cells' contracts/released-domain-envelope-v2-adoption-denominator-v1.json)" \
+            --argjson expected "$(jq '.expected' contracts/released-domain-envelope-v2-adoption-denominator-v1.json)" \
+            '.subject_sha==$subject and .decision=="ADOPTION_CANDIDATE_CONFORMANT" and .claim.state=="CLOSED" and .summary.total==$cells and .summary.closed==$cells and .summary.unknown==0 and .summary.refuted==0 and .summary.prior_semantic_dependencies==$expected.prior_infra.semantic_dependencies and .summary.prior_semantic_edges==$expected.prior_infra.semantic_edges and .summary.prior_semantic_activities==$expected.prior_infra.semantic_activities and .summary.prior_dependency_kinds==$expected.prior_infra.dependency_kinds and .summary.prior_openapi_bindings==$expected.prior_infra.openapi_bindings and .summary.prior_terraform_bindings==$expected.prior_infra.terraform_bindings and .summary.prior_deployment_chain_cells==$expected.prior_infra.deployment_chain_cells and .summary.relations_observed==$expected.relations and .summary.evidence_observed==$expected.evidence and .summary.resolutions_observed==$expected.resolutions and .summary.envelope_files==$expected.envelope_files and .summary.kit_checks==$expected.local_checks and .summary.kit_checks_total==$expected.local_checks and .summary.source_replay==$expected.source_replay and .summary.file_replay==$expected.file_replay and .summary.opentofu_adoption=={observed:0,total:1,state:"UNKNOWN",next_operation:$expected.opentofu_adoption.next_operation} and .summary.opentofu_boundary_cases.executed==$expected.opentofu_boundary_cases and .summary.opentofu_boundary_cases.total==$expected.opentofu_boundary_cases and .summary.opentofu_boundary_cases.refuted==$expected.opentofu_boundary_cases and (.summary.opentofu_boundary_cases.report_digests|length)==$expected.opentofu_boundary_cases and .summary.normal_paths==$expected.normal_paths and .summary.unknown_paths==$expected.unknown_paths and .summary.refuted_paths==$expected.refuted_paths and (.cell_facts|length)==$cells and ([.cell_facts[].id]|unique|length)==$cells and ([.cell_facts[].activity]|unique|length)==$cells and all(.cell_facts[];.fact_observed==true) and .adoption.exact_before_after_improvement=={observed:0,total:1,state:"UNKNOWN",reason:"NO_PRE_RELEASE_EXACT_IMPROVEMENT_EVIDENCE"} and .metrics.ci_build_executions==0 and .metrics.ci_build_wall_ms==0 and .metrics.ci_build_reason=="NO_PRODUCT_BUILD_REQUIRED" and .metrics.ci_core_graph_executions==1 and .metrics.ci_core_resolution_executions==$cells and .metrics.ci_core_phase_executions==($cells+1) and .metrics.ci_core_wall_ms>=0 and .metrics.ci_conformance_executions==1 and .metrics.ci_conformance_wall_ms>=0 and .metrics.ci_scenario_executions==($expected.unknown_paths+$expected.refuted_paths) and .metrics.ci_scenario_wall_ms>=0 and .metrics.ci_opentofu_boundary_executions==$expected.opentofu_boundary_cases and .metrics.ci_opentofu_boundary_wall_ms>=0 and .metrics.ci_replay_executions==1 and .metrics.ci_replay_wall_ms>=0 and .metrics.upstream_test_receipts_available==1 and .metrics.upstream_test_receipts_reused==0 and .metrics.upstream_test_receipts_unknown==1 and .metrics.current_subject_checks_executed==($cells+1+1+$expected.unknown_paths+$expected.refuted_paths+$expected.opentofu_boundary_cases+1) and .metrics.stale_receipts==0 and .metrics.reexecutions_skipped_due_to_exact_receipt==0 and (.proofs|map(select(.closed==.total and .total==4))|length)==3 and (.indicator_classes|map(select(.closed==.total and .total==4))|length)==3' "$WORK_DIR/normal.json" >/dev/null
+          snapshot() {
+            find . -path './.git' -prune -o -type f ! -path './README.md' -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}'
+          }
+          snapshot > "$WORK_DIR/repository-after.sha256"
+          cmp "$WORK_DIR/repository-before.sha256" "$WORK_DIR/repository-after.sha256"
+          jq -e --argjson cells "$(jq '.target_cells' contracts/released-domain-envelope-v2-adoption-denominator-v1.json)" --argjson edges "$(jq '[.cells[].depends_on[]]|length' contracts/released-domain-envelope-v2-adoption-denominator-v1.json)" --argjson opentofu_boundary_total "$(jq '.expected.opentofu_boundary_cases' contracts/released-domain-envelope-v2-adoption-denominator-v1.json)" --arg owner "$(jq -r '.expected.projection_owner' contracts/released-domain-envelope-v2-adoption-denominator-v1.json)" '.authority.repository_writes==0 and .authority.local_tests==0 and .authority.local_test_executions==0 and .authority.cross_project_required_gates==0 and .authority.kit_source_checkout==0 and .authority.conformer_copy==0 and .authority.opentofu_init_executions==0 and .authority.opentofu_plan_executions==0 and .authority.opentofu_apply_executions==0 and .authority.opentofu_test_executions==0 and .authority.opentofu_source_imports==0 and .authority.opentofu_vendor_operations==0 and .authority.opentofu_build_executions==0 and .authority.opentofu_provider_accesses==0 and .authority.opentofu_network_accesses==0 and .authority.opentofu_cloud_accesses==0 and .meta_activity_authority.graph_dependency_bindings_verified==true and .meta_activity_authority.dependency_bindings_observed==$cells and .meta_activity_authority.dependency_edges_observed==$edges and (.meta_activity_authority.graph_sha256|type=="string" and test("^[0-9a-f]{64}$")) and .product_projection.projection_owner==$owner and .paths=={normal:1,unknown:2,refuted:3} and .opentofu_boundary_cases.executed==$opentofu_boundary_total and .opentofu_boundary_cases.total==$opentofu_boundary_total and .opentofu_boundary_cases.refuted==$opentofu_boundary_total and (.opentofu_boundary_cases.report_digests|length)==$opentofu_boundary_total and .authority.repository_writes==0 and .infra_dependency_source.terraform_evidence=={iac_engine:"TERRAFORM",reclassified_as_opentofu:false} and .infra_dependency_source.opentofu_adoption=={observed:0,total:1,state:"UNKNOWN",next_operation:"PROVIDE_IMMUTABLE_OPENTOFU_JSON_RECEIPT"} and .infra_dependency_source.opentofu_receipt.receipt_state=="UNOBSERVED" and .infra_dependency_source.opentofu_receipt.engine_inferred_from_json_key==false and .upstream_test_receipts.receipt_state=="AVAILABLE_NOT_REUSED" and .upstream_test_receipts.reuse_decision=="UNKNOWN" and .upstream_test_receipts.reason=="COMMAND_DIGEST_UNAVAILABLE" and .upstream_test_receipts.command_digest==null and .upstream_test_receipts.current_command_digest==null and (.upstream_test_receipts.subject_digest|type=="string" and test("^[0-9a-f]{64}$")) and (.upstream_test_receipts.contract_digest|type=="string" and test("^[0-9a-f]{64}$")) and (.upstream_test_receipts.toolchain_digest|type=="string" and test("^[0-9a-f]{64}$")) and .upstream_test_receipts.subject_digest_basis=="LOCK_INFRA_RELEASE_IDENTITY" and .upstream_test_receipts.contract_digest_basis=="LOCK_INFRA_PLAN_AND_REPLAY_ASSETS" and .upstream_test_receipts.toolchain_digest_basis=="REPLAY_RECEIPT_SCHEMA_AND_IMMUTABLE_ASSET" and .utility.state=="UNKNOWN" and .utility.exact_before_after_improvement_observed==0 and .utility.exact_before_after_improvement_total==1' "$WORK_DIR/facts.json" >/dev/null
+
+      - name: Publish evidence artifacts and CI target summary
+        uses: actions/upload-artifact@v6
+        with:
+          name: released-domain-envelope-v2-${{ env.SUBJECT_SHA }}
+          if-no-files-found: error
+          path: |
+            ${{ env.WORK_DIR }}/bundle-a
+            ${{ env.WORK_DIR }}/bundle-b
+            ${{ env.WORK_DIR }}/conformance.json
+            ${{ env.WORK_DIR }}/file-replay.json
+            ${{ env.WORK_DIR }}/facts.json
+            ${{ env.WORK_DIR }}/normal.json
+            ${{ env.WORK_DIR }}/core-dependency-bindings.json
+            ${{ env.WORK_DIR }}/unknown-missing.json
+            ${{ env.WORK_DIR }}/unknown-dependency-blocked.json
+            ${{ env.WORK_DIR }}/refuted-malformed-unknown.json
+            ${{ env.WORK_DIR }}/refuted-fixed-point.json
+            ${{ env.WORK_DIR }}/refuted-unknown-decision.json
+            ${{ env.WORK_DIR }}/refuted-iac-unknown-engine.json
+            ${{ env.WORK_DIR }}/refuted-iac-unknown-top-level.json
+            ${{ env.WORK_DIR }}/runtime.json
+            ${{ env.WORK_DIR }}/source-lines.ndjson
+            ${{ env.WORK_DIR }}/infra/deployment-plan.json
+            ${{ env.WORK_DIR }}/infra/semantic-deployment-plan-replay.json
+
+      - name: Write CI target summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          summary="$WORK_DIR/normal.json"
+          graph_bindings="$WORK_DIR/core-dependency-bindings.json"
+          plan="$WORK_DIR/infra/deployment-plan.json"
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Released-domain envelope v2 adoption candidate
+
+          - subject/check-out: $SUBJECT_SHA / $SUBJECT_SHA
+          - product projection: $(jq -r '.artifacts.product_projection' "$summary")/1; envelope files: $(jq -r '.summary.envelope_files' "$summary")/8
+          - relations/evidence/resolutions: $(jq -r '.summary.relations_observed' "$summary")/$(jq -r '.summary.evidence_observed' "$summary")/$(jq -r '.summary.resolutions_observed' "$summary")
+          - v0.8 plan: activities $(jq -r '.summary.prior_semantic_activities' "$summary"), dependencies $(jq -r '.summary.prior_semantic_dependencies' "$summary"), dependency kinds $(jq -r '.summary.prior_dependency_kinds' "$summary"), semantic edges $(jq -r '.summary.prior_semantic_edges' "$summary"), OpenAPI $(jq -r '.summary.prior_openapi_bindings' "$summary"), Terraform $(jq -r '.summary.prior_terraform_bindings' "$summary"), deployment chain $(jq -r '.summary.prior_deployment_chain_cells' "$summary")
+          - kit conformer: $(jq -r '.summary.kit_checks' "$summary")/$(jq -r '.summary.kit_checks_total' "$summary"); source replay: $(jq -r '.summary.source_replay' "$summary")/1; file replay: $(jq -r '.summary.file_replay' "$summary")/8
+          - normal/UNKNOWN/REFUTED paths: exact 1/2/3 across five reports
+          - OpenTofu fail-closed boundary cases: $(jq -r '.summary.opentofu_boundary_cases.refuted' "$summary")/$(jq -r '.summary.opentofu_boundary_cases.total' "$summary"); upstream replay receipt available/reused/unknown: $(jq -r '.metrics.upstream_test_receipts_available' "$summary")/$(jq -r '.metrics.upstream_test_receipts_reused' "$summary")/$(jq -r '.metrics.upstream_test_receipts_unknown' "$summary")
+          - UNKNOWN coordinates: $(jq -r '.summary.unknown_coordinates' "$summary"); graph bindings: $(jq -r '.binding_cells' "$graph_bindings") cells / $(jq -r '.binding_edges' "$graph_bindings") edges; meta cells: $(jq -r '.summary.total' "$summary")/12; proof: 4/4/4; indicator: 4/4/4
+          - released adoption: 0/1 UNKNOWN; external utility: 0/1 UNKNOWN; exact improvement: 0/1 UNKNOWN
+          - repository writes/local test executions/cross-project gates: 0/0/0
+          - kit source checkout/conformer copy: 0/0
+          - Go setup: 1.27.x; root README: excluded; go fix roots: []
+          - merge/release: not performed
+          EOF
