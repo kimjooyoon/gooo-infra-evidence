@@ -31,8 +31,13 @@ jobs:
       - name: Require canonical Go formatting
         run: |
           set -euo pipefail
+          set +e
           gofmt -d scripts/observe-service-symbol.go > "$RUNNER_TEMP/gofmt.diff"
+          format_status=$?
+          set -e
           cat "$RUNNER_TEMP/gofmt.diff"
+          echo "gofmt exit status: $format_status"
+          test "$format_status" -eq 0
           test ! -s "$RUNNER_TEMP/gofmt.diff"
       - name: Require zero Go fix rewrites
         run: |
@@ -187,6 +192,8 @@ jobs:
           name: infra-service-symbol-${{ env.SUBJECT_SHA }}
           path: |
             ${{ runner.temp }}/go-toolchain.json
+            ${{ runner.temp }}/gofmt.diff
+            ${{ runner.temp }}/go-fix.diff
             ${{ runner.temp }}/runtime-v2.json
             ${{ runner.temp }}/enriched-graph.json
             ${{ runner.temp }}/service-symbol.json
