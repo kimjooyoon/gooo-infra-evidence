@@ -49,7 +49,7 @@ jobs:
              .authority.cross_project_required_gates==0 and
              ($repo=="kimjooyoon/gooo-infra-evidence" or $repo=="${{ github.repository }}")' "$LOCK" >/dev/null
           jq -e '.schema=="gooo/infra-evidence/released-domain-envelope-v2-adoption-denominator/v1" and .target_cells==12 and (.cells|length)==12 and ([.cells[].id]|unique|length)==12 and ([.cells[].activity]|unique|length)==12' "$DENOM" >/dev/null
-          jq -e '.schema=="gooo/infra-evidence/released-domain-envelope-v2-adoption-packet/v1" and .adoption.released_domain.observed==0 and .adoption.released_domain.total==1' "$PACKET" >/dev/null
+          jq -e '.schema=="gooo/infra-evidence/released-domain-envelope-v2-adoption-packet/v1" and .adoption.released_domain_observed==0 and .adoption.released_domain_total==1' "$PACKET" >/dev/null
 
           download_asset() {
             local repository=$1
