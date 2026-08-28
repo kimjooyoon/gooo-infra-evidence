@@ -42,13 +42,18 @@ jobs:
       - name: Require zero Go fix rewrites
         run: |
           set -euo pipefail
-          set +e
-          go tool fix -diff scripts/observe-service-symbol.go > "$RUNNER_TEMP/go-fix.diff"
-          fix_status=$?
-          set -e
+          fix_dir="$RUNNER_TEMP/go-fix-copy"
+          mkdir -p "$fix_dir"
+          cp scripts/observe-service-symbol.go "$fix_dir/main.go"
+          printf 'module example.com/gooo/infra-observer-fix\n\ngo 1.27.0\n' > "$fix_dir/go.mod"
+          before=$(sha256sum "$fix_dir/main.go" | awk '{print $1}')
+          (cd "$fix_dir" && go fix .)
+          after=$(sha256sum "$fix_dir/main.go" | awk '{print $1}')
+          diff -u scripts/observe-service-symbol.go "$fix_dir/main.go" > "$RUNNER_TEMP/go-fix.diff" || true
           cat "$RUNNER_TEMP/go-fix.diff"
-          echo "fix exit status: $fix_status"
-          test "$fix_status" -eq 0
+          echo "fix input digest: $before"
+          echo "fix output digest: $after"
+          test "$before" = "$after"
           test ! -s "$RUNNER_TEMP/go-fix.diff"
       - name: Require zero Go vet findings
         run: |
