@@ -1,0 +1,12 @@
+package semanticdeploymentplanambiguous
+namespace semanticdeploymentplanambiguous
+
+entity FirstSeed id "infra://semantic-deployment-plan/ambiguous/first-seed"
+entity SecondSeed id "infra://semantic-deployment-plan/ambiguous/second-seed"
+entity SharedDeploymentState id "infra://semantic-deployment-plan/ambiguous/shared-state"
+entity DeploymentPlanState id "infra://semantic-deployment-plan/ambiguous/plan"
+
+activity EstablishFirstDeployment(FirstSeed) -> SharedDeploymentState computes "claim.observe:recoverable|first-deployment-producer"
+activity EstablishSecondDeployment(SecondSeed) -> SharedDeploymentState computes "claim.observe:recoverable|second-deployment-producer"
+activity PlanAmbiguousDeployment(SharedDeploymentState) -> DeploymentPlanState computes "claim.edge:requires|plan-requires-unambiguous-deployment"
+

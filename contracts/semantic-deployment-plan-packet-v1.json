@@ -1,0 +1,79 @@
+{
+  "schema": "gooo/infra-evidence/semantic-deployment-plan-contract/v1",
+  "deployment": {
+    "id": "infra://deployment/checkout-prod-plan-v1",
+    "name": "Checkout production semantic deployment plan",
+    "source_path": "examples/semantic-deployment-plan/plan.gooo"
+  },
+  "primitive": {
+    "id": "gooo.primitive.claim-dependency-causality.v1",
+    "release": "v0.4.0-dev"
+  },
+  "prior_release": {
+    "repository": "kimjooyoon/gooo-infra-evidence",
+    "tag": "v0.7.0-dev",
+    "target_commit_sha": "7d44efcc7d239d2c30a55c43e426027c0cd72112",
+    "schema": "gooo/infra-evidence/deployment-contract-packet/v1",
+    "decision": "DEPLOYMENT_CONTRACT_PACKET_GENERATED",
+    "summary": {
+      "contract_cells": 15,
+      "generated_artifacts": 3,
+      "semantic_edges": 6,
+      "openapi_bindings": 1,
+      "terraform_bindings": 1,
+      "deployment_chain_cells": 4
+    }
+  },
+  "activity_order": [
+    "EstablishDeploymentContract",
+    "BindOpenAPIContract",
+    "BindServiceHandler",
+    "BindTerraformResource",
+    "DetectDeploymentDrift",
+    "CloseDeploymentPlan"
+  ],
+  "normal": {
+    "activities": 6,
+    "recoverable_roots": 1,
+    "typed_declarations": 5,
+    "dependency_inputs": 8,
+    "dependencies": 8,
+    "edge_kinds": 4,
+    "kind_counts": {"requires":3,"supports":2,"contradicts":2,"failure_entailment":1}
+  },
+  "unknown": {
+    "decision": "INCOMPLETE",
+    "state": "UNKNOWN",
+    "stage": "DEPENDENCY_DISCOVERY",
+    "step": "BIND_INPUT_PRODUCER",
+    "reason": "CLAIM_INPUT_PRODUCER_UNAVAILABLE",
+    "unknown_class": "DIRECT_MISSING",
+    "next_operation": "DECLARE_INPUT_PRODUCER",
+    "blocked_by": 1,
+    "coordinates": 6
+  },
+  "refutations": [
+    {"case":"unsupported-kind","reason":"CLAIM_DEPENDENCY_EDGE_KIND_UNSUPPORTED"},
+    {"case":"ambiguous-producer","reason":"CLAIM_OUTPUT_PRODUCER_AMBIGUOUS"},
+    {"case":"cycle","reason":"CLAIM_DEPENDENCY_CYCLE_DETECTED"}
+  ],
+  "outputs": ["deployment-plan.json","deployment-plan.md"],
+  "replay_comparisons": 7,
+  "utility": {
+    "declared_external_use_cases": 1,
+    "evidenced_external_use_cases": 0,
+    "state": "UNKNOWN",
+    "reason": "EXTERNAL_DEPLOYMENT_PLAN_USE_NOT_YET_OBSERVED"
+  },
+  "non_claims": [
+    "DEPLOYMENT_EXECUTION",
+    "TERRAFORM_APPLY",
+    "NETWORK_PROBE",
+    "PROPOSITION_TRUTH",
+    "STATE_PROPAGATION",
+    "REPOSITORY_MUTATION",
+    "AUTOMATIC_MERGE",
+    "CROSS_PROJECT_AUTHORITY"
+  ]
+}
+

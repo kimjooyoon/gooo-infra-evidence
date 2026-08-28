@@ -1,0 +1,39 @@
+{
+  "schema": "gooo/infra-evidence/semantic-deployment-plan-release-lock/v1",
+  "core": {
+    "repository": "kimjooyoon/meta-ontology-go",
+    "tag": "v0.4.0-dev",
+    "release_id": 378565653,
+    "target_commit_sha": "57ac9ec486bbca69e447a8eba94e0ce3cd03ced0",
+    "prerelease": true,
+    "assets": {
+      "linux": {"name":"gooo-linux-amd64.tar.gz","size":7057764,"sha256":"3f6f34156dc959c4ae80711ff55cfbd135023fd57df673d28247e1894bf42f48"},
+      "checksums": {"name":"SHA256SUMS","size":270,"sha256":"58f6882f9dc056af40e3892fbf8c4a702ff7123c2c7ff4fd4d1c26350297fe12"},
+      "release_report": {"name":"release-report.json","size":26281,"sha256":"9524e26fd7823de2645817086ec5b9734c72ea9992933ee07770d58b072c8fab"},
+      "release_eligibility": {"name":"release-eligibility.json","size":3180,"sha256":"72553cfb319b032b1bc164518c1acf9e3f0beb5359c3f856ed701d190427e327"}
+    }
+  },
+  "infra": {
+    "repository": "kimjooyoon/gooo-infra-evidence",
+    "tag": "v0.7.0-dev",
+    "release_id": 378512908,
+    "target_commit_sha": "7d44efcc7d239d2c30a55c43e426027c0cd72112",
+    "prerelease": true,
+    "asset": {
+      "id": 533859772,
+      "name": "deployment-contract-packet-7d44efcc7d239d2c30a55c43e426027c0cd72112.zip",
+      "size": 36071,
+      "sha256": "4f91290d17e63a5c751f8a4dc12fc5b6658dad3c2d8420f3b988e4839e6ec860"
+    }
+  },
+  "authority": {
+    "released_inputs_only": true,
+    "cross_project_required_gates": 0,
+    "local_tests": 0,
+    "repository_writes": 0,
+    "deployment_execution_authorized": false,
+    "terraform_apply_authorized": false,
+    "automatic_merge_allowed": false
+  }
+}
+

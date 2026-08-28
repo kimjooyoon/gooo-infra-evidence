@@ -1,0 +1,9 @@
+package semanticdeploymentplancycle
+namespace semanticdeploymentplancycle
+
+entity DeploymentState id "infra://semantic-deployment-plan/cycle/deployment"
+entity DeploymentPlanState id "infra://semantic-deployment-plan/cycle/plan"
+
+activity DeriveDeploymentFromPlan(DeploymentPlanState) -> DeploymentState computes "claim.edge:requires|deployment-requires-plan"
+activity DerivePlanFromDeployment(DeploymentState) -> DeploymentPlanState computes "claim.edge:supports|plan-supports-deployment"
+

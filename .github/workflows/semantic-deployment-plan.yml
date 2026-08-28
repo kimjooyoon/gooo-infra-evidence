@@ -1,0 +1,381 @@
+name: Semantic Deployment Plan
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-deployment-plan:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      WORK_DIR: /tmp/gooo-semantic-deployment-plan
+      ARTIFACT_DIR: /tmp/semantic-deployment-plan-artifact
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: 1.27.x
+          check-latest: true
+
+      - name: Prepare immutable inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$WORK_DIR" "$ARTIFACT_DIR"
+          mkdir -p "$WORK_DIR/core/bin" "$WORK_DIR/infra/release" "$ARTIFACT_DIR"
+          find . -path './.git' -prune -o -type f -print0 | sort -z | xargs -0 sha256sum > "$WORK_DIR/repository-before.sha256"
+
+          find . -name go.mod -not -path './.git/*' -print0 |
+            while IFS= read -r -d '' module; do
+              (cd "$(dirname "$module")" && go fix ./...)
+            done
+
+          lock=contracts/semantic-deployment-plan-release-lock-v1.json
+          core_repository=$(jq -r '.core.repository' "$lock")
+          core_tag=$(jq -r '.core.tag' "$lock")
+          core_sha=$(jq -r '.core.target_commit_sha' "$lock")
+          gh api "repos/$core_repository/releases/tags/$core_tag" > "$WORK_DIR/core/release.json"
+          jq -e --arg tag "$core_tag" --argjson release_id "$(jq '.core.release_id' "$lock")" '
+            .tag_name==$tag and .id==$release_id and .prerelease==true
+          ' "$WORK_DIR/core/release.json" >/dev/null
+          test "$(git ls-remote "https://github.com/$core_repository.git" "refs/tags/$core_tag" | awk '{print $1}')" = "$core_sha"
+
+          download_core_asset() {
+            key=$1
+            name=$(jq -r --arg key "$key" '.core.assets[$key].name' "$lock")
+            expected_size=$(jq -r --arg key "$key" '.core.assets[$key].size' "$lock")
+            expected_digest=$(jq -r --arg key "$key" '.core.assets[$key].sha256' "$lock")
+            asset_url=$(jq -r --arg name "$name" '.assets[] | select(.name==$name) | .url' "$WORK_DIR/core/release.json")
+            test -n "$asset_url"
+            gh api -H "Accept: application/octet-stream" "$asset_url" > "$WORK_DIR/core/$name"
+            test "$(wc -c < "$WORK_DIR/core/$name" | tr -d ' ')" = "$expected_size"
+            test "$(sha256sum "$WORK_DIR/core/$name" | awk '{print $1}')" = "$expected_digest"
+          }
+
+          download_core_asset linux
+          download_core_asset checksums
+          download_core_asset release_report
+          download_core_asset release_eligibility
+          (cd "$WORK_DIR/core" && sha256sum -c SHA256SUMS --ignore-missing)
+          tar -xzf "$WORK_DIR/core/gooo-linux-amd64.tar.gz" -C "$WORK_DIR/core/bin"
+          find "$WORK_DIR/core/bin" -type f -name gooo -exec chmod +x {} \;
+          find "$WORK_DIR/core/bin" -type f -name gooo -print -quit > "$WORK_DIR/gooo-path"
+          test -s "$WORK_DIR/gooo-path"
+
+          infra_repository=$(jq -r '.infra.repository' "$lock")
+          infra_tag=$(jq -r '.infra.tag' "$lock")
+          infra_sha=$(jq -r '.infra.target_commit_sha' "$lock")
+          gh api "repos/$infra_repository/releases/tags/$infra_tag" > "$WORK_DIR/infra/release.json"
+          jq -e --arg tag "$infra_tag" --argjson release_id "$(jq '.infra.release_id' "$lock")" '
+            .tag_name==$tag and .id==$release_id and .prerelease==true
+          ' "$WORK_DIR/infra/release.json" >/dev/null
+          test "$(git ls-remote "https://github.com/$infra_repository.git" "refs/tags/$infra_tag" | awk '{print $1}')" = "$infra_sha"
+          infra_name=$(jq -r '.infra.asset.name' "$lock")
+          infra_url=$(jq -r --arg name "$infra_name" '.assets[] | select(.name==$name) | .url' "$WORK_DIR/infra/release.json")
+          test -n "$infra_url"
+          gh api -H "Accept: application/octet-stream" "$infra_url" > "$WORK_DIR/infra/$infra_name"
+          test "$(wc -c < "$WORK_DIR/infra/$infra_name" | tr -d ' ')" = "$(jq -r '.infra.asset.size' "$lock")"
+          test "$(sha256sum "$WORK_DIR/infra/$infra_name" | awk '{print $1}')" = "$(jq -r '.infra.asset.sha256' "$lock")"
+          unzip -q "$WORK_DIR/infra/$infra_name" -d "$WORK_DIR/infra/release"
+          infra_report=$(find "$WORK_DIR/infra/release" -type f -name deployment-contract.json -print -quit)
+          test -s "$infra_report"
+          cp "$infra_report" "$WORK_DIR/infra/deployment-contract.json"
+
+      - name: Execute Gooo semantic deployment plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          gooo=$(cat "$WORK_DIR/gooo-path")
+          plan=examples/semantic-deployment-plan/plan.gooo
+          observation=examples/semantic-deployment-plan/observation.gooo
+          "$gooo" check "$plan"
+          "$gooo" check "$observation"
+          "$gooo" graph dump "$observation" > "$WORK_DIR/observation-graph.json"
+
+          start_ns=$(date +%s%N)
+          /usr/bin/time -f '%M' -o "$WORK_DIR/max-rss-kib" \
+            bash scripts/generate-semantic-deployment-plan.sh \
+              "$gooo" \
+              "$plan" \
+              examples/semantic-deployment-plan/missing-producer.gooo \
+              examples/semantic-deployment-plan/unsupported-kind.gooo \
+              examples/semantic-deployment-plan/ambiguous-producer.gooo \
+              examples/semantic-deployment-plan/cycle.gooo \
+              contracts/semantic-deployment-plan-packet-v1.json \
+              "$WORK_DIR/infra/deployment-contract.json" \
+              "$WORK_DIR/first"
+          end_ns=$(date +%s%N)
+          elapsed_ms=$(( (end_ns - start_ns) / 1000000 ))
+
+          bash scripts/generate-semantic-deployment-plan.sh \
+            "$gooo" \
+            "$plan" \
+            examples/semantic-deployment-plan/missing-producer.gooo \
+            examples/semantic-deployment-plan/unsupported-kind.gooo \
+            examples/semantic-deployment-plan/ambiguous-producer.gooo \
+            examples/semantic-deployment-plan/cycle.gooo \
+            contracts/semantic-deployment-plan-packet-v1.json \
+            "$WORK_DIR/infra/deployment-contract.json" \
+            "$WORK_DIR/replay"
+
+          comparisons=0
+          mismatches=0
+          for relative in \
+            deployment-plan.json \
+            deployment-plan.md \
+            evidence/closed.json \
+            evidence/missing-producer.json \
+            evidence/unsupported-kind.json \
+            evidence/ambiguous-producer.json \
+            evidence/cycle.json; do
+            comparisons=$((comparisons + 1))
+            if ! cmp -s "$WORK_DIR/first/$relative" "$WORK_DIR/replay/$relative"; then
+              mismatches=$((mismatches + 1))
+            fi
+          done
+          jq -S -n \
+            --argjson total "$comparisons" \
+            --argjson mismatches "$mismatches" '
+            {
+              schema:"gooo/infra-evidence/semantic-deployment-plan-replay/v1",
+              comparisons_total:$total,
+              comparisons_satisfied:($total-$mismatches),
+              mismatches:$mismatches
+            }
+          ' > "$WORK_DIR/replay.json"
+
+          find . -path './.git' -prune -o -type f -print0 | sort -z |
+            while IFS= read -r -d '' file; do
+              case "$file" in
+                *.gooo) language=Gooo ;;
+                *.go) language=Go ;;
+                *) continue ;;
+              esac
+              jq -S -n \
+                --arg path "$(printf '%s' "$file" | sed 's#^\./##')" \
+                --arg language "$language" \
+                --argjson lines "$(wc -l < "$file" | tr -d ' ')" \
+                '{path:$path,language:$language,lines:$lines}'
+            done > "$WORK_DIR/source-lines.ndjson"
+
+          repository_files=$(find . -path './.git' -prune -o -type f -print | wc -l | tr -d ' ')
+          descendant_directories=$(find . -path './.git' -prune -o -mindepth 1 -type d -print | wc -l | tr -d ' ')
+          jq -s \
+            --argjson repository_files "$repository_files" \
+            --argjson descendant_directories "$descendant_directories" '
+            . as $files |
+            {
+              repository_files:$repository_files,
+              descendant_directories:$descendant_directories,
+              root_readme_readiness:"EXCLUDED",
+              go:{
+                files:([$files[]|select(.language=="Go")]|length),
+                lines:([$files[]|select(.language=="Go")|.lines]|add//0)
+              },
+              gooo:{
+                files:([$files[]|select(.language=="Gooo")]|length),
+                lines:([$files[]|select(.language=="Gooo")|.lines]|add//0)
+              },
+              per_file:$files
+            }
+          ' "$WORK_DIR/source-lines.ndjson" > "$WORK_DIR/inventory.json"
+
+          json_bytes=$(wc -c < "$WORK_DIR/first/deployment-plan.json" | tr -d ' ')
+          markdown_bytes=$(wc -c < "$WORK_DIR/first/deployment-plan.md" | tr -d ' ')
+          markdown_lines=$(wc -l < "$WORK_DIR/first/deployment-plan.md" | tr -d ' ')
+          max_rss_kib=$(cat "$WORK_DIR/max-rss-kib")
+          go_version=$(go env GOVERSION)
+          jq -S -n \
+            --slurpfile inventory "$WORK_DIR/inventory.json" \
+            --arg go_version "$go_version" \
+            --argjson elapsed_ms "$elapsed_ms" \
+            --argjson max_rss_kib "$max_rss_kib" \
+            --argjson json_bytes "$json_bytes" \
+            --argjson markdown_bytes "$markdown_bytes" \
+            --argjson markdown_lines "$markdown_lines" '
+            {
+              schema:"gooo/infra-evidence/semantic-deployment-plan-runtime/v1",
+              go_version:$go_version,
+              releases:{core:true,infra:true},
+              elapsed_ms:$elapsed_ms,
+              max_rss_kib:$max_rss_kib,
+              inventory:$inventory[0],
+              artifacts:{generated:2,json_bytes:$json_bytes,markdown_bytes:$markdown_bytes,markdown_lines:$markdown_lines},
+              utility:{
+                declared_external_use_cases:1,
+                evidenced_external_use_cases:0,
+                state:"UNKNOWN",
+                reason:"EXTERNAL_DEPLOYMENT_PLAN_USE_NOT_YET_OBSERVED"
+              },
+              root_readme_readiness:"EXCLUDED",
+              repository_writes:0,
+              local_tests:0,
+              cross_project_required_gates:0,
+              authority:{
+                repository_mutation_authorized:false,
+                automatic_repair_authorized:false,
+                automatic_merge_allowed:false,
+                deployment_execution_authorized:false,
+                terraform_apply_authorized:false,
+                network_probe_authorized:false
+              }
+            }
+          ' > "$WORK_DIR/runtime.json"
+
+          find . -path './.git' -prune -o -type f -print0 | sort -z | xargs -0 sha256sum > "$WORK_DIR/repository-after.sha256"
+          cmp "$WORK_DIR/repository-before.sha256" "$WORK_DIR/repository-after.sha256"
+
+      - name: Evaluate normal and counterexample paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          report_evaluation_failure() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              echo "semantic deployment plan evaluation failed with status $status" >&2
+              for report in "$WORK_DIR"/{normal,unknown,refuted,tampered-release,utility-laundering,missing-meta,authority}.json; do
+                if [ -s "$report" ]; then
+                  echo "=== $report ===" >&2
+                  cat "$report" >&2
+                fi
+              done
+            fi
+          }
+          trap report_evaluation_failure EXIT
+
+          evaluate() {
+            plan_dir=$1
+            primary=$2
+            replay=$3
+            runtime=$4
+            output=$5
+            phase=$6
+            graph=$7
+            infra_report=$8
+            bash scripts/evaluate-semantic-deployment-plan.sh \
+              . \
+              "$graph" \
+              "$WORK_DIR/core/release-report.json" \
+              "$WORK_DIR/core/release-eligibility.json" \
+              "$infra_report" \
+              "$plan_dir" \
+              "$primary" \
+              "$replay" \
+              "$runtime" \
+              "$output" \
+              "$GITHUB_SHA" \
+              "$phase"
+          }
+
+          evaluate "$WORK_DIR/first" "$WORK_DIR/first/evidence/closed.json" "$WORK_DIR/replay.json" "$WORK_DIR/runtime.json" "$WORK_DIR/normal.json" "$GITHUB_EVENT_NAME" "$WORK_DIR/observation-graph.json" "$WORK_DIR/infra/deployment-contract.json"
+          evaluate "$WORK_DIR/first" "$WORK_DIR/first/evidence/missing-producer.json" "$WORK_DIR/replay.json" "$WORK_DIR/runtime.json" "$WORK_DIR/unknown.json" counterexample-unknown "$WORK_DIR/observation-graph.json" "$WORK_DIR/infra/deployment-contract.json"
+          evaluate "$WORK_DIR/first" "$WORK_DIR/first/evidence/unsupported-kind.json" "$WORK_DIR/replay.json" "$WORK_DIR/runtime.json" "$WORK_DIR/refuted.json" counterexample-refuted "$WORK_DIR/observation-graph.json" "$WORK_DIR/infra/deployment-contract.json"
+
+          jq '.summary.semantic_edges_observed=5' "$WORK_DIR/infra/deployment-contract.json" > "$WORK_DIR/tampered-infra.json"
+          evaluate "$WORK_DIR/first" "$WORK_DIR/first/evidence/closed.json" "$WORK_DIR/replay.json" "$WORK_DIR/runtime.json" "$WORK_DIR/tampered-release.json" counterexample-release "$WORK_DIR/observation-graph.json" "$WORK_DIR/tampered-infra.json"
+
+          jq '.utility.evidenced_external_use_cases=1 | .utility.state="CLOSED"' "$WORK_DIR/runtime.json" > "$WORK_DIR/utility-runtime.json"
+          evaluate "$WORK_DIR/first" "$WORK_DIR/first/evidence/closed.json" "$WORK_DIR/replay.json" "$WORK_DIR/utility-runtime.json" "$WORK_DIR/utility-laundering.json" counterexample-utility "$WORK_DIR/observation-graph.json" "$WORK_DIR/infra/deployment-contract.json"
+
+          jq 'del(.nodes[] | select(.name=="GenerateJSONDeploymentPlan"))' "$WORK_DIR/observation-graph.json" > "$WORK_DIR/missing-meta-graph.json"
+          evaluate "$WORK_DIR/first" "$WORK_DIR/first/evidence/closed.json" "$WORK_DIR/replay.json" "$WORK_DIR/runtime.json" "$WORK_DIR/missing-meta.json" counterexample-meta "$WORK_DIR/missing-meta-graph.json" "$WORK_DIR/infra/deployment-contract.json"
+
+          jq '.repository_writes=1 | .authority.deployment_execution_authorized=true' "$WORK_DIR/runtime.json" > "$WORK_DIR/authority-runtime.json"
+          evaluate "$WORK_DIR/first" "$WORK_DIR/first/evidence/closed.json" "$WORK_DIR/replay.json" "$WORK_DIR/authority-runtime.json" "$WORK_DIR/authority.json" counterexample-authority "$WORK_DIR/observation-graph.json" "$WORK_DIR/infra/deployment-contract.json"
+
+          jq -e '
+            .decision=="SEMANTIC_DEPLOYMENT_PLAN_GENERATED" and
+            .claim.state=="CLOSED" and
+            .summary.cells_closed==12 and .summary.cells_total==12 and
+            .summary.cells_unknown==0 and .summary.cells_refuted==0 and
+            .summary.meta_activities_bound==12 and
+            .summary.deployment_activities_observed==6 and
+            .summary.dependencies_observed==8 and .summary.dependency_kinds_observed==4 and
+            .summary.prior_contract_cells_observed==15 and
+            .summary.prior_generated_artifacts_observed==3 and
+            .summary.prior_semantic_edges_observed==6 and
+            .summary.prior_openapi_bindings_observed==1 and
+            .summary.prior_terraform_bindings_observed==1 and
+            .summary.prior_deployment_chain_observed==4 and
+            .summary.generated_artifacts_observed==2 and
+            .summary.unknown_coordinates_observed==6 and
+            .summary.refuted_boundaries_observed==3 and
+            .summary.replay_comparisons_observed==7 and
+            all(.proof_counts[]; .observed==4 and .total==4) and
+            all(.indicator_counts[]; .observed==4 and .total==4) and
+            .utility.evidenced_external_use_cases==0 and .utility.declared_external_use_cases==1 and .utility.state=="UNKNOWN" and
+            .summary.repository_writes==0 and .summary.local_tests==0 and .summary.cross_project_required_gates==0
+          ' "$WORK_DIR/normal.json" >/dev/null
+
+          jq -e '
+            .decision=="SEMANTIC_DEPLOYMENT_PLAN_UNKNOWN" and .claim.state=="UNKNOWN" and
+            .claim.stage=="DEPENDENCY_DISCOVERY" and .claim.step=="BIND_INPUT_PRODUCER" and
+            .claim.reason=="CLAIM_INPUT_PRODUCER_UNAVAILABLE" and .claim.unknown_class=="DIRECT_MISSING" and
+            .claim.next_operation=="DECLARE_INPUT_PRODUCER" and (.claim.blocked_by|length)==1 and
+            .summary.cells_closed==8 and .summary.cells_unknown==4 and .summary.cells_refuted==0
+          ' "$WORK_DIR/unknown.json" >/dev/null
+          jq -e '
+            .decision=="FAIL_CLOSED" and .claim.state=="REFUTED" and
+            .claim.reason=="CLAIM_DEPENDENCY_EDGE_KIND_UNSUPPORTED" and
+            .summary.cells_closed==8 and .summary.cells_unknown==0 and .summary.cells_refuted==4
+          ' "$WORK_DIR/refuted.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .claim.reason=="PINNED_INFRA_CONTRACT_RELEASE_INVALID" and .summary.cells_closed==11 and .summary.cells_refuted==1' "$WORK_DIR/tampered-release.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .claim.reason=="UTILITY_AUTHORITY_BOUNDARY_VIOLATED" and .summary.cells_closed==11 and .summary.cells_refuted==1' "$WORK_DIR/utility-laundering.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .claim.reason=="GOOO_META_ACTIVITY_MISSING" and .summary.cells_closed==11 and .summary.cells_refuted==1' "$WORK_DIR/missing-meta.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .claim.reason=="UTILITY_AUTHORITY_BOUNDARY_VIOLATED" and .summary.cells_closed==11 and .summary.cells_refuted==1' "$WORK_DIR/authority.json" >/dev/null
+
+      - name: Assemble released product packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACT_DIR/bin" "$ARTIFACT_DIR/contracts" "$ARTIFACT_DIR/examples" "$ARTIFACT_DIR/docs" "$ARTIFACT_DIR/generated" "$ARTIFACT_DIR/evaluations"
+          cp scripts/generate-semantic-deployment-plan.sh "$ARTIFACT_DIR/bin/"
+          chmod +x "$ARTIFACT_DIR/bin/generate-semantic-deployment-plan.sh"
+          cp contracts/semantic-deployment-plan-packet-v1.json "$ARTIFACT_DIR/contracts/"
+          cp contracts/semantic-deployment-plan-denominator-v1.json "$ARTIFACT_DIR/contracts/"
+          cp contracts/semantic-deployment-plan-release-lock-v1.json "$ARTIFACT_DIR/contracts/"
+          cp examples/semantic-deployment-plan/*.gooo "$ARTIFACT_DIR/examples/"
+          cp docs/rfcs/semantic-deployment-plan-v1.md "$ARTIFACT_DIR/docs/"
+          cp -R "$WORK_DIR/first/." "$ARTIFACT_DIR/generated/"
+          cp "$WORK_DIR"/{normal,unknown,refuted,tampered-release,utility-laundering,missing-meta,authority}.json "$ARTIFACT_DIR/evaluations/"
+          cp "$WORK_DIR/runtime.json" "$ARTIFACT_DIR/"
+          cp "$WORK_DIR/inventory.json" "$ARTIFACT_DIR/"
+          cp "$WORK_DIR/replay.json" "$ARTIFACT_DIR/"
+          (cd "$ARTIFACT_DIR" && find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+
+          {
+            echo "## Semantic Deployment Plan"
+            echo
+            jq -r '"- Conformance cells: \(.summary.cells_closed)/\(.summary.cells_total)"' "$WORK_DIR/normal.json"
+            jq -r '"- Deployment activities: \(.summary.deployment_activities_observed)/\(.summary.deployment_activities_total)"' "$WORK_DIR/normal.json"
+            jq -r '"- Dependencies: \(.summary.dependencies_observed)/\(.summary.dependencies_total)"' "$WORK_DIR/normal.json"
+            jq -r '"- Prior deployment contract cells: \(.summary.prior_contract_cells_observed)/15"' "$WORK_DIR/normal.json"
+            jq -r '"- Prior OpenAPI/Terraform bindings: \(.summary.prior_openapi_bindings_observed)/1 / \(.summary.prior_terraform_bindings_observed)/1"' "$WORK_DIR/normal.json"
+            jq -r '"- Generated artifacts: \(.summary.generated_artifacts_observed)/\(.summary.generated_artifacts_total)"' "$WORK_DIR/normal.json"
+            jq -r '"- UNKNOWN coordinates: \(.summary.unknown_coordinates_observed)/\(.summary.unknown_coordinates_total)"' "$WORK_DIR/normal.json"
+            jq -r '"- REFUTED boundaries: \(.summary.refuted_boundaries_observed)/\(.summary.refuted_boundaries_total)"' "$WORK_DIR/normal.json"
+            jq -r '"- Deterministic replay: \(.summary.replay_comparisons_observed)/\(.summary.replay_comparisons_total)"' "$WORK_DIR/normal.json"
+            jq -r '"- Memory: \(.metrics.max_rss_kib) KiB"' "$WORK_DIR/normal.json"
+            jq -r '"- Time: \(.metrics.elapsed_ms) ms"' "$WORK_DIR/normal.json"
+            jq -r '"- Repository files/directories: \(.metrics.repository_files)/\(.metrics.descendant_directories)"' "$WORK_DIR/normal.json"
+            jq -r '"- Go files/lines: \(.metrics.go_files)/\(.metrics.go_lines)"' "$WORK_DIR/normal.json"
+            jq -r '"- Gooo files/lines: \(.metrics.gooo_files)/\(.metrics.gooo_lines)"' "$WORK_DIR/normal.json"
+            jq -r '"- Repository writes/local tests/cross-project gates: \(.summary.repository_writes)/\(.summary.local_tests)/\(.summary.cross_project_required_gates)"' "$WORK_DIR/normal.json"
+            jq -r '"- External utility evidence: \(.utility.evidenced_external_use_cases)/\(.utility.declared_external_use_cases) (\(.utility.state))"' "$WORK_DIR/normal.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: semantic-deployment-plan
+          path: /tmp/semantic-deployment-plan-artifact
+          if-no-files-found: error
+
