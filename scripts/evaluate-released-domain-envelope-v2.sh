@@ -70,9 +70,24 @@ jq -S -n \
     end;
   def upstream_receipt_reuse_boundary:
     $f.upstream_test_receipts as $r |
-    if $r.receipt_state=="UNOBSERVED" and
+    if $r.receipt_state=="AVAILABLE_NOT_REUSED" and
+       $f.metrics.upstream_test_receipts_available>=1 and
+       $f.metrics.upstream_test_receipts_reused==0 and
+       $f.metrics.upstream_test_receipts_unknown==1 and
+       $f.metrics.stale_receipts==0 and
+       ($r.subject_digest|type=="string" and test("^[0-9a-f]{64}$")) and
+       ($r.contract_digest|type=="string" and test("^[0-9a-f]{64}$")) and
+       ($r.toolchain_digest|type=="string" and test("^[0-9a-f]{64}$")) and
+       $r.subject_digest_basis=="LOCK_INFRA_RELEASE_IDENTITY" and
+       $r.contract_digest_basis=="LOCK_INFRA_PLAN_AND_REPLAY_ASSETS" and
+       $r.toolchain_digest_basis=="REPLAY_RECEIPT_SCHEMA_AND_IMMUTABLE_ASSET" and
+       $r.command_digest==null and $r.current_command_digest==null and
+       $r.reuse_decision=="UNKNOWN" and $r.reason=="COMMAND_DIGEST_UNAVAILABLE" then
+      {state:"CLOSED",reason:"UPSTREAM_REPLAY_RECEIPT_AVAILABLE_NOT_REUSED",next_operation:"RECORD_CANONICAL_REPLAY_COMMAND_DIGEST",unknown_class:null,blocked_by:[]}
+    elif $r.receipt_state=="UNOBSERVED" and
        $f.metrics.upstream_test_receipts_available==0 and
        $f.metrics.upstream_test_receipts_reused==0 and
+       $f.metrics.upstream_test_receipts_unknown==0 and
        $f.metrics.stale_receipts==0 and
        $r.subject_digest==null and $r.contract_digest==null and
        $r.toolchain_digest==null and $r.command_digest==null then
@@ -274,7 +289,8 @@ jq -S -n \
      prior_deployment_chain_cells:$f.infra_dependency_source.prior_deployment_chain_cells,
      opentofu_adoption:$f.infra_dependency_source.opentofu_adoption,
      normal_paths:$f.paths.normal,unknown_paths:$f.paths.unknown,refuted_paths:$f.paths.refuted,
-     unknown_coordinates:$f.unknown_causality.coordinates_observed,source_replay:$f.replay.source_satisfied,file_replay:$f.replay.file_satisfied},
+     unknown_coordinates:$f.unknown_causality.coordinates_observed,source_replay:$f.replay.source_satisfied,file_replay:$f.replay.file_satisfied,
+     opentofu_boundary_cases:$f.opentofu_boundary_cases},
    adoption:{released_domain:{observed:$d.expected.released_adoption.observed,total:$d.expected.released_adoption.total,state:"UNKNOWN",reason:"RELEASE_NOT_PUBLISHED"},external_utility:$f.utility,exact_before_after_improvement:{observed:$d.expected.exact_before_after_improvement.observed,total:$d.expected.exact_before_after_improvement.total,state:"UNKNOWN",reason:"NO_PRE_RELEASE_EXACT_IMPROVEMENT_EVIDENCE"}},
    authority:$f.authority,artifacts:$f.artifacts,metrics:$f.metrics,
    proofs:([$d.proof_totals[]|.proof_choice] | map(. as $choice|{choice:$choice,closed:([$cells[]|select(.proof_choice==$choice and .state=="CLOSED")]|length),total:([$cells[]|select(.proof_choice==$choice)]|length)})),

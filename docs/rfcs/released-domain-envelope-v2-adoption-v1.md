@@ -135,6 +135,11 @@ UNKNOWN reports, and three REFUTED reports.
    contains an earlier valid UNKNOWN so the evaluator proves that its
    top-level claim selects `REFUTED` first.
 
+Those five reports are the main-path denominator only. Two separate OpenTofu
+boundary reports are not added to its `1/2/3` count: an explicit unknown
+engine and an unrecognized receipt state each fail closed. The independent
+guardrail is therefore `opentofu_boundary_cases=2/2`.
+
 Only after those reports are hashed are their report digests merged into the
 facts file. The final normal evaluator then runs from the merged facts. This
 prevents a counterexample report from being asserted using a digest produced
@@ -149,7 +154,9 @@ unrecognized Core receipts are never converted to zero; they remain
 `UNKNOWN` or `REFUTED` as specified by the report. A REFUTED cell always wins
 the report's top-level claim over an earlier UNKNOWN. Unobserved values are
 `null` or `UNOBSERVED`, not zero; no phase label changes a null fact into a
-closed fact.
+closed fact. The `UNKNOWN coordinates=6` observation is calculated from the
+two report claims' non-null `stage`, `step`, `reason`, `unknown_class`,
+`next_operation`, and `blocked_by` fields, not assigned as a literal.
 
 ## Execution and receipt accounting
 
@@ -162,13 +169,16 @@ conformance, scenario, and replay execution and wall-time fields.
 is not an upstream test count.
 
 `upstream_test_receipts_available`, `upstream_test_receipts_reused`, and
-`stale_receipts` are distinct counters. A reusable upstream receipt is accepted
-only if its `subject_digest`, `contract_digest`, `toolchain_digest`, and
-`command_digest` all exactly equal the current values. Any mismatch is marked
-`STALE`/`UNKNOWN` and cannot be reused. This run has no upstream test receipt
-available or reused. `reexecutions_skipped_due_to_exact_receipt` may be
-counted later, but time saved and exact improvement remain `UNKNOWN` until
-before/after evidence exists.
+`upstream_test_receipts_unknown`, and `stale_receipts` are distinct counters.
+CI actually downloads and validates the immutable v0.8 semantic deployment
+plan replay receipt, so it records `available=1`, `reused=0`, `unknown=1`,
+and `stale=0`. Its subject, contract, and toolchain tuple digests are derived
+from the lock and replay receipt. The receipt has no canonical command digest;
+both command-digest fields therefore remain `null`, its reuse decision stays
+`UNKNOWN`, and it is not reused. A receipt is reusable only when all four
+tuple digests match current values. `reexecutions_skipped_due_to_exact_receipt`
+may be counted later, but time saved and exact improvement remain `UNKNOWN`
+until before/after evidence exists.
 
 ## Acceptance targets
 
@@ -182,6 +192,8 @@ The PR CI reports the following observed targets independently:
 | Kit conformer checks | 10/10 |
 | Source replay / file replay | 1/1 / 8/8 |
 | Normal / UNKNOWN / REFUTED paths | exactly 1/2/3 |
+| OpenTofu fail-closed boundary cases | 2/2, outside main path denominator |
+| Upstream replay receipt: available / reused / unknown / stale | 1/0/1/0 |
 | UNKNOWN coordinates | 6 |
 | Meta cells | 12/12 |
 | Proof and indicator class cells | 4/4/4 each |

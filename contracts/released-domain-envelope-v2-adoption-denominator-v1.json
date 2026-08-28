@@ -26,6 +26,7 @@
     "normal_paths": 1,
     "unknown_paths": 2,
     "refuted_paths": 3,
+    "opentofu_boundary_cases": 2,
     "projection_owner": "INTERCHANGE_SPECIFICATION",
     "prior_infra": {
       "semantic_dependencies": 8,
