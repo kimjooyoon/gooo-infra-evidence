@@ -42,6 +42,14 @@ CI evaluates three views without modifying the repository:
   `DEPENDENCY_BLOCKED` UNKNOWN cells;
 - deployment artifact drift: deployment and runtime cells are REFUTED.
 
+The v2 path parses `terraform/main.tf` with the digest-locked HashiCorp HCL
+v2.24.0 syntax tree. It observes the resource labels, required literal
+attributes, and source range, then binds that receipt to the released Gooo
+`ObserveTerraformDeclaration` activity. Missing source and missing expression
+context remain distinct UNKNOWN classes; invalid syntax and contradictory
+literals are REFUTED. CI reports parser peak RSS and wall time separately from
+the released Gooo graph command.
+
 ## Non-claims
 
 The v1 fixture does not execute Terraform, contact a cloud provider, deploy a

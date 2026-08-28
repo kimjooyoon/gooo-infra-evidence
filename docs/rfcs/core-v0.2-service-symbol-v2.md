@@ -33,6 +33,18 @@ observation to that activity receipt. The Go AST observer is a replaceable
 adapter; it cannot close a cell without the corresponding released Gooo
 activity and its dependency predecessors.
 
+The Terraform declaration uses the same boundary. HashiCorp HCL v2.24.0 is
+locked by module and Go checksum, and `hclsyntax.ParseConfig` observes one
+resource block, its two labels, the `target` and `image_digest` attributes, and
+the source range. The `TERRAFORM_DECLARATION` cell closes only when that receipt
+and the released `ObserveTerraformDeclaration` activity receipt are both
+present. Text search is not declaration evidence.
+
+Missing source is `UNKNOWN/DIRECT_MISSING`. A literal that requires an absent
+evaluation context is `UNKNOWN/CONTEXT_MISSING`. Invalid HCL syntax, duplicate
+resource cardinality, missing attributes, or contradictory literal values are
+REFUTED. Terraform execution remains outside this parser claim.
+
 ## Independence and non-claims
 
 This repository does not wait for the local-ledger or design-evidence
@@ -40,6 +52,7 @@ projects. It publishes its own claim and can fail without blocking either
 project. Cross-project orchestration may consume released claims later, but is
 not a readiness predecessor here.
 
-Terraform execution, Terraform validation, live cloud state, deployment
-execution, and live network probing remain NOT_CLAIMED. CI evaluates captured
-receipts and performs zero source-repository writes.
+Terraform execution, provider validation, live cloud state, deployment
+execution, and live network probing remain NOT_CLAIMED. HCL syntax and literal
+binding are claimed. CI evaluates captured receipts and performs zero
+source-repository writes.

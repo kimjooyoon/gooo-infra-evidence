@@ -28,11 +28,26 @@ jobs:
         run: |
           set -euo pipefail
           case "$(go env GOVERSION)" in go1.27.*) ;; *) exit 1 ;; esac
+      - name: Prepare pinned HashiCorp HCL parser module
+        run: |
+          set -euo pipefail
+          lock=contracts/hcl-parser-lock-v1.json
+          module=$(jq -r .module "$lock")
+          version=$(jq -r .version "$lock")
+          parser_dir="$RUNNER_TEMP/hcl-observer"
+          mkdir -p "$parser_dir"
+          cp scripts/observe-hcl-declaration.go "$parser_dir/main.go"
+          printf 'module example.com/gooo/hcl-observer\n\ngo 1.27.0\n\nrequire %s %s\n' "$module" "$version" > "$parser_dir/go.mod"
+          (cd "$parser_dir" && go mod download -json "$module@$version") > "$RUNNER_TEMP/hcl-module-download.json"
+          jq -e --arg module "$module" --arg version "$version" --arg sum "$(jq -r .sum "$lock")" --arg go_mod_sum "$(jq -r .go_mod_sum "$lock")" '.Path==$module and .Version==$version and .Sum==$sum and .GoModSum==$go_mod_sum' "$RUNNER_TEMP/hcl-module-download.json" >/dev/null
+          (cd "$parser_dir" && go mod tidy)
+          jq -S -n --slurpfile lock "$lock" --slurpfile download "$RUNNER_TEMP/hcl-module-download.json" '{schema:"gooo/infra-evidence/hcl-parser-module/v1",module:$lock[0].module,version:$lock[0].version,sum:$download[0].Sum,go_mod_sum:$download[0].GoModSum,package:$lock[0].package,parser_api:$lock[0].parser_api}' > "$RUNNER_TEMP/hcl-parser-module.json"
+          echo "HCL_OBSERVER_DIR=$parser_dir" >> "$GITHUB_ENV"
       - name: Require canonical Go formatting
         run: |
           set -euo pipefail
           set +e
-          gofmt -d scripts/observe-service-symbol.go > "$RUNNER_TEMP/gofmt.diff"
+          gofmt -d scripts/observe-service-symbol.go scripts/observe-hcl-declaration.go > "$RUNNER_TEMP/gofmt.diff"
           format_status=$?
           set -e
           cat "$RUNNER_TEMP/gofmt.diff"
@@ -55,14 +70,25 @@ jobs:
           echo "fix output digest: $after"
           test "$before" = "$after"
           test ! -s "$RUNNER_TEMP/go-fix.diff"
+          hcl_before=$(sha256sum scripts/observe-hcl-declaration.go | awk '{print $1}')
+          (cd "$HCL_OBSERVER_DIR" && go fix .)
+          hcl_after=$(sha256sum "$HCL_OBSERVER_DIR/main.go" | awk '{print $1}')
+          diff -u scripts/observe-hcl-declaration.go "$HCL_OBSERVER_DIR/main.go" > "$RUNNER_TEMP/hcl-go-fix.diff" || true
+          cat "$RUNNER_TEMP/hcl-go-fix.diff"
+          echo "HCL fix input digest: $hcl_before"
+          echo "HCL fix output digest: $hcl_after"
+          test "$hcl_before" = "$hcl_after"
+          test ! -s "$RUNNER_TEMP/hcl-go-fix.diff"
       - name: Require zero Go vet findings
         run: |
           set -euo pipefail
           go vet scripts/observe-service-symbol.go
+          (cd "$HCL_OBSERVER_DIR" && go vet .)
+          (cd "$HCL_OBSERVER_DIR" && go build -trimpath -o "$RUNNER_TEMP/observe-hcl-declaration" .)
       - name: Record Go toolchain receipt
         run: |
           set -euo pipefail
-          jq -n --arg version "$(go env GOVERSION)" '{schema:"gooo/infra-evidence/go-toolchain/v1",version:$version,gofmt_changes:0,fix_changes:0,vet_findings:0}' > "$RUNNER_TEMP/go-toolchain.json"
+          jq -n --arg version "$(go env GOVERSION)" --slurpfile hcl "$RUNNER_TEMP/hcl-parser-module.json" '{schema:"gooo/infra-evidence/go-toolchain/v1",version:$version,gofmt_changes:0,fix_changes:0,vet_findings:0,hcl_parser:$hcl[0]}' > "$RUNNER_TEMP/go-toolchain.json"
       - name: Download immutable core and generator releases
         env:
           GH_TOKEN: ${{ github.token }}
@@ -116,59 +142,98 @@ jobs:
           peak_rss_kib=$(awk -F: '/Maximum resident set size/ {gsub(/ /,"",$2); print $2}' "$RUNNER_TEMP/time.txt")
           bash "$generator/scripts/bind-activity-resolutions.sh" "$gooo" "$source" "$RUNNER_TEMP/graph.json" \
             contracts/infra-activity-selectors-v1.json contracts/core-v0.2-release-lock-v1.json "$RUNNER_TEMP/enriched-graph.json" project_graph
+          hcl_start_ns=$(date +%s%N)
+          /usr/bin/time -f '%M' -o "$RUNNER_TEMP/hcl-time.txt" "$RUNNER_TEMP/observe-hcl-declaration" "$GITHUB_WORKSPACE/fixtures/checkout-service/project-v2.json" > "$RUNNER_TEMP/hcl-declaration.json"
+          hcl_end_ns=$(date +%s%N)
+          hcl_wall_ms=$(( (hcl_end_ns-hcl_start_ns)/1000000 ))
+          hcl_peak_rss_kib=$(cat "$RUNNER_TEMP/hcl-time.txt")
           go run scripts/observe-service-symbol.go fixtures/checkout-service/project-v2.json > "$RUNNER_TEMP/service-symbol.json"
           git status --porcelain=v1 -z --untracked-files=all > "$after"
           if cmp -s "$before" "$after"; then writes=0; else writes=1; fi
           jq -n --arg head "$SUBJECT_SHA" --arg before_digest "sha256:$(sha256sum "$before"|awk '{print $1}')" \
             --arg after_digest "sha256:$(sha256sum "$after"|awk '{print $1}')" --argjson writes "$writes" \
             --argjson peak_rss_kib "$peak_rss_kib" --argjson wall_ms "$wall_ms" \
+            --argjson hcl_peak_rss_kib "$hcl_peak_rss_kib" --argjson hcl_wall_ms "$hcl_wall_ms" \
             --slurpfile version "$RUNNER_TEMP/version.json" --slurpfile syntax "$RUNNER_TEMP/syntax.json" \
             --slurpfile semantic "$RUNNER_TEMP/semantic.json" --slurpfile toolchain "$RUNNER_TEMP/go-toolchain.json" \
             '{schema:"gooo/infra-evidence/runtime-observation/v2",subject_sha:$head,release_identity_observed:true,version:$version[0],syntax_check:$syntax[0],semantic_check:$semantic[0],
-              go_toolchain:$toolchain[0],performance:{graph_peak_rss_kib:$peak_rss_kib,graph_wall_ms:$wall_ms},repository:{before_digest:$before_digest,after_digest:$after_digest,writes:$writes}}' > "$RUNNER_TEMP/runtime-v2.json"
+              go_toolchain:$toolchain[0],performance:{graph_peak_rss_kib:$peak_rss_kib,graph_wall_ms:$wall_ms,hcl_parser_peak_rss_kib:$hcl_peak_rss_kib,hcl_parser_wall_ms:$hcl_wall_ms},repository:{before_digest:$before_digest,after_digest:$after_digest,writes:$writes}}' > "$RUNNER_TEMP/runtime-v2.json"
       - name: Evaluate exact complete and adversarial cases
         run: |
           set -euo pipefail
           candidate=fixtures/checkout-service
-          evaluate() { bash scripts/evaluate-v2.sh "$GITHUB_WORKSPACE" "$1" "$RUNNER_TEMP/runtime-v2.json" "$2" "$3" "$4" "$SUBJECT_SHA" "$5"; }
-          evaluate "$candidate" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/service-symbol.json" "$RUNNER_TEMP/infra-service-claim.json" complete
-          evaluate "$candidate" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/service-symbol.json" "$RUNNER_TEMP/replay.json" complete
+          evaluate() { bash scripts/evaluate-v2.sh "$GITHUB_WORKSPACE" "$1" "$RUNNER_TEMP/runtime-v2.json" "$2" "$3" "$4" "$5" "$SUBJECT_SHA" "$6"; }
+          evaluate "$candidate" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/hcl-declaration.json" "$RUNNER_TEMP/service-symbol.json" "$RUNNER_TEMP/infra-service-claim.json" complete
+          evaluate "$candidate" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/hcl-declaration.json" "$RUNNER_TEMP/service-symbol.json" "$RUNNER_TEMP/replay.json" complete
           cmp -s "$RUNNER_TEMP/infra-service-claim.json" "$RUNNER_TEMP/replay.json"
           jq -e '.decision=="EVIDENCE_CHAIN_CLOSED" and .summary=={total:12,closed:12,unknown:0,refuted:0,direct_missing:0,dependency_blocked:0,repository_writes:0} and
             .authority.core_activity_receipts==12 and .authority.core_identity_anchors==1 and
             all(.proofs[];.closed==.total) and all(.indicator_classes[];.closed==.total) and
             (.indicators[]|select(.id=="gooo.metric.infra-evidence.semantic-edges.v2")|.value==6 and .total==6) and
-            (.indicators[]|select(.id=="gooo.metric.infra-evidence.service-symbol-bindings.v2")|.value==1 and .total==1)' "$RUNNER_TEMP/infra-service-claim.json" >/dev/null
+            (.indicators[]|select(.id=="gooo.metric.infra-evidence.service-symbol-bindings.v2")|.value==1 and .total==1) and
+            (.indicators[]|select(.id=="gooo.metric.infra-evidence.hcl-resource-bindings.v2")|.value==1 and .total==1 and .activity=="ObserveTerraformDeclaration") and
+            .authority.terraform_declaration_parser=="HASHICORP_HCL_V2" and .authority.terraform_parser_version=="v2.24.0" and .authority.terraform_validation=="HCL_SYNTAX_AND_LITERAL_BINDING_ONLY"' "$RUNNER_TEMP/infra-service-claim.json" >/dev/null
           cp -R "$candidate" "$RUNNER_TEMP/missing-build"
           rm "$RUNNER_TEMP/missing-build/build/receipt-v2.json"
           go run scripts/observe-service-symbol.go "$RUNNER_TEMP/missing-build/project-v2.json" > "$RUNNER_TEMP/missing-build-symbol.json"
-          evaluate "$RUNNER_TEMP/missing-build" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/missing-build-symbol.json" "$RUNNER_TEMP/missing-build.json" missing-build
+          evaluate "$RUNNER_TEMP/missing-build" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/hcl-declaration.json" "$RUNNER_TEMP/missing-build-symbol.json" "$RUNNER_TEMP/missing-build.json" missing-build
           jq -e '.decision=="INCOMPLETE" and .summary.closed==9 and .summary.unknown==3 and .summary.refuted==0 and .summary.direct_missing==1 and .summary.dependency_blocked==2 and
             .claim.stage=="BUILD" and .claim.step=="BIND_SERVICE_ARTIFACT_PROVENANCE" and .claim.reason=="SERVICE_ARTIFACT_PROVENANCE_UNAVAILABLE" and .claim.unknown_class=="DIRECT_MISSING"' "$RUNNER_TEMP/missing-build.json" >/dev/null
           cp -R "$candidate" "$RUNNER_TEMP/missing-state"
           rm "$RUNNER_TEMP/missing-state/terraform/state.json"
           go run scripts/observe-service-symbol.go "$RUNNER_TEMP/missing-state/project-v2.json" > "$RUNNER_TEMP/missing-state-symbol.json"
-          evaluate "$RUNNER_TEMP/missing-state" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/missing-state-symbol.json" "$RUNNER_TEMP/missing-state-v2.json" missing-state
+          evaluate "$RUNNER_TEMP/missing-state" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/hcl-declaration.json" "$RUNNER_TEMP/missing-state-symbol.json" "$RUNNER_TEMP/missing-state-v2.json" missing-state
           jq -e '.decision=="INCOMPLETE" and .summary.closed==9 and .summary.unknown==3 and .summary.refuted==0 and .summary.direct_missing==1 and .summary.dependency_blocked==2 and
             .claim.stage=="INFRA_STATE" and .claim.step=="BIND_TERRAFORM_STATE" and .claim.reason=="TERRAFORM_STATE_UNAVAILABLE" and .claim.unknown_class=="DIRECT_MISSING"' "$RUNNER_TEMP/missing-state-v2.json" >/dev/null
           cp -R "$candidate" "$RUNNER_TEMP/ambiguous-handler"
           awk '{print; if ($0 ~ /http.HandleFunc\("GET \/health", health\)/) print}' "$RUNNER_TEMP/ambiguous-handler/service/main-v2.go" > "$RUNNER_TEMP/ambiguous.go"
           mv "$RUNNER_TEMP/ambiguous.go" "$RUNNER_TEMP/ambiguous-handler/service/main-v2.go"
           go run scripts/observe-service-symbol.go "$RUNNER_TEMP/ambiguous-handler/project-v2.json" > "$RUNNER_TEMP/ambiguous-handler-symbol.json"
-          evaluate "$RUNNER_TEMP/ambiguous-handler" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/ambiguous-handler-symbol.json" "$RUNNER_TEMP/ambiguous-handler.json" ambiguous-handler
+          evaluate "$RUNNER_TEMP/ambiguous-handler" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/hcl-declaration.json" "$RUNNER_TEMP/ambiguous-handler-symbol.json" "$RUNNER_TEMP/ambiguous-handler.json" ambiguous-handler
           jq -e '.decision=="FAIL_CLOSED" and .summary.closed==8 and .summary.unknown==0 and .summary.refuted==4 and
             .claim.stage=="SERVICE_SYMBOL" and .claim.step=="BIND_OPENAPI_OPERATION_TO_GO_HANDLER" and .claim.reason=="GO_HANDLER_REGISTRATION_CARDINALITY_MISMATCH"' "$RUNNER_TEMP/ambiguous-handler.json" >/dev/null
           jq '.activity_resolution_observation.core_release.target_commit_sha="0000000000000000000000000000000000000000"' "$RUNNER_TEMP/enriched-graph.json" > "$RUNNER_TEMP/identity-mismatch-graph.json"
-          evaluate "$candidate" "$RUNNER_TEMP/identity-mismatch-graph.json" "$RUNNER_TEMP/service-symbol.json" "$RUNNER_TEMP/identity-mismatch.json" identity-mismatch
+          evaluate "$candidate" "$RUNNER_TEMP/identity-mismatch-graph.json" "$RUNNER_TEMP/hcl-declaration.json" "$RUNNER_TEMP/service-symbol.json" "$RUNNER_TEMP/identity-mismatch.json" identity-mismatch
           jq -e '.decision=="FAIL_CLOSED" and .summary.closed==0 and .summary.unknown==0 and .summary.refuted==12 and
             .claim.stage=="CORE_RELEASE" and .claim.step=="OBSERVE_RELEASED_GOOO_IDENTITY" and .claim.reason=="CORE_RESOLUTION_RELEASE_IDENTITY_MISMATCH"' "$RUNNER_TEMP/identity-mismatch.json" >/dev/null
           cp -R "$candidate" "$RUNNER_TEMP/deployment-drift"
           jq '.artifact_digest="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"' "$RUNNER_TEMP/deployment-drift/deployment/receipt.json" > "$RUNNER_TEMP/drift-receipt.json"
           mv "$RUNNER_TEMP/drift-receipt.json" "$RUNNER_TEMP/deployment-drift/deployment/receipt.json"
           go run scripts/observe-service-symbol.go "$RUNNER_TEMP/deployment-drift/project-v2.json" > "$RUNNER_TEMP/deployment-drift-symbol.json"
-          evaluate "$RUNNER_TEMP/deployment-drift" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/deployment-drift-symbol.json" "$RUNNER_TEMP/deployment-drift.json" deployment-drift
+          evaluate "$RUNNER_TEMP/deployment-drift" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/hcl-declaration.json" "$RUNNER_TEMP/deployment-drift-symbol.json" "$RUNNER_TEMP/deployment-drift.json" deployment-drift
           jq -e '.decision=="FAIL_CLOSED" and .summary.closed==10 and .summary.unknown==0 and .summary.refuted==2 and
             .claim.stage=="DEPLOYMENT" and .claim.step=="BIND_DEPLOYMENT_OUTPUT" and .claim.reason=="ARTIFACT_IDENTITY_MISMATCH"' "$RUNNER_TEMP/deployment-drift.json" >/dev/null
+
+          cp -R "$candidate" "$RUNNER_TEMP/missing-hcl"
+          rm "$RUNNER_TEMP/missing-hcl/terraform/main.tf"
+          "$RUNNER_TEMP/observe-hcl-declaration" "$RUNNER_TEMP/missing-hcl/project-v2.json" > "$RUNNER_TEMP/missing-hcl-receipt.json"
+          go run scripts/observe-service-symbol.go "$RUNNER_TEMP/missing-hcl/project-v2.json" > "$RUNNER_TEMP/missing-hcl-symbol.json"
+          evaluate "$RUNNER_TEMP/missing-hcl" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/missing-hcl-receipt.json" "$RUNNER_TEMP/missing-hcl-symbol.json" "$RUNNER_TEMP/missing-hcl.json" missing-hcl
+          jq -e '.decision=="INCOMPLETE" and .summary.closed==6 and .summary.unknown==6 and .summary.refuted==0 and .summary.direct_missing==1 and .summary.dependency_blocked==5 and .claim.stage=="INFRA_DECLARATION" and .claim.step=="PARSE_HCL_TERRAFORM_DECLARATION" and .claim.reason=="HCL_TERRAFORM_DECLARATION_UNAVAILABLE" and .claim.unknown_class=="DIRECT_MISSING" and .claim.next_operation=="PROVIDE_HCL_TERRAFORM_DECLARATION"' "$RUNNER_TEMP/missing-hcl.json" >/dev/null
+
+          cp -R "$candidate" "$RUNNER_TEMP/context-hcl"
+          sed 's/target       = "prod\/checkout"/target       = var.checkout_target/' "$RUNNER_TEMP/context-hcl/terraform/main.tf" > "$RUNNER_TEMP/context.tf"
+          mv "$RUNNER_TEMP/context.tf" "$RUNNER_TEMP/context-hcl/terraform/main.tf"
+          "$RUNNER_TEMP/observe-hcl-declaration" "$RUNNER_TEMP/context-hcl/project-v2.json" > "$RUNNER_TEMP/context-hcl-receipt.json"
+          go run scripts/observe-service-symbol.go "$RUNNER_TEMP/context-hcl/project-v2.json" > "$RUNNER_TEMP/context-hcl-symbol.json"
+          evaluate "$RUNNER_TEMP/context-hcl" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/context-hcl-receipt.json" "$RUNNER_TEMP/context-hcl-symbol.json" "$RUNNER_TEMP/context-hcl.json" context-hcl
+          jq -e '.decision=="INCOMPLETE" and .summary.closed==6 and .summary.unknown==6 and .summary.refuted==0 and .summary.direct_missing==0 and .summary.dependency_blocked==5 and .claim.stage=="INFRA_DECLARATION" and .claim.step=="PARSE_HCL_TERRAFORM_DECLARATION" and .claim.reason=="HCL_RESOURCE_VALUE_UNRESOLVED" and .claim.unknown_class=="CONTEXT_MISSING" and .claim.next_operation=="PROVIDE_HCL_EVALUATION_CONTEXT"' "$RUNNER_TEMP/context-hcl.json" >/dev/null
+
+          cp -R "$candidate" "$RUNNER_TEMP/invalid-hcl"
+          sed '$d' "$RUNNER_TEMP/invalid-hcl/terraform/main.tf" > "$RUNNER_TEMP/invalid.tf"
+          mv "$RUNNER_TEMP/invalid.tf" "$RUNNER_TEMP/invalid-hcl/terraform/main.tf"
+          "$RUNNER_TEMP/observe-hcl-declaration" "$RUNNER_TEMP/invalid-hcl/project-v2.json" > "$RUNNER_TEMP/invalid-hcl-receipt.json"
+          go run scripts/observe-service-symbol.go "$RUNNER_TEMP/invalid-hcl/project-v2.json" > "$RUNNER_TEMP/invalid-hcl-symbol.json"
+          evaluate "$RUNNER_TEMP/invalid-hcl" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/invalid-hcl-receipt.json" "$RUNNER_TEMP/invalid-hcl-symbol.json" "$RUNNER_TEMP/invalid-hcl.json" invalid-hcl
+          jq -e '.decision=="FAIL_CLOSED" and .summary.closed==6 and .summary.refuted==6 and .claim.stage=="INFRA_DECLARATION" and .claim.step=="PARSE_HCL_TERRAFORM_DECLARATION" and .claim.reason=="HCL_TERRAFORM_DECLARATION_INVALID"' "$RUNNER_TEMP/invalid-hcl.json" >/dev/null
+
+          cp -R "$candidate" "$RUNNER_TEMP/mismatched-hcl"
+          sed 's/prod\/checkout/prod\/wrong/' "$RUNNER_TEMP/mismatched-hcl/terraform/main.tf" > "$RUNNER_TEMP/mismatched.tf"
+          mv "$RUNNER_TEMP/mismatched.tf" "$RUNNER_TEMP/mismatched-hcl/terraform/main.tf"
+          "$RUNNER_TEMP/observe-hcl-declaration" "$RUNNER_TEMP/mismatched-hcl/project-v2.json" > "$RUNNER_TEMP/mismatched-hcl-receipt.json"
+          go run scripts/observe-service-symbol.go "$RUNNER_TEMP/mismatched-hcl/project-v2.json" > "$RUNNER_TEMP/mismatched-hcl-symbol.json"
+          evaluate "$RUNNER_TEMP/mismatched-hcl" "$RUNNER_TEMP/enriched-graph.json" "$RUNNER_TEMP/mismatched-hcl-receipt.json" "$RUNNER_TEMP/mismatched-hcl-symbol.json" "$RUNNER_TEMP/mismatched-hcl.json" mismatched-hcl
+          jq -e '.decision=="FAIL_CLOSED" and .summary.closed==6 and .summary.refuted==6 and .claim.stage=="INFRA_DECLARATION" and .claim.step=="PARSE_HCL_TERRAFORM_DECLARATION" and .claim.reason=="HCL_RESOURCE_VALUE_MISMATCH"' "$RUNNER_TEMP/mismatched-hcl.json" >/dev/null
       - name: Publish human-readable exact indicators
         run: |
           {
@@ -180,7 +245,7 @@ jobs:
               (.indicators[]|if has("total") then "- \(.id): \(.value)/\(.total) \(.unit) [\(.state)]" else "- \(.id): \(.value) \(.unit) [\(.state)]" end),
               "- OpenAPI: \(.identities.openapi_method) \(.identities.openapi_path) / \(.identities.openapi_operation)",
               "- Go handler: \(.identities.service_handler)",
-              "- Terraform execution: \(.authority.terraform_execution)","- live cloud state: \(.authority.live_cloud_state)","- deployment execution: \(.authority.deployment_execution)","- live network probe: \(.authority.live_network_probe)",
+              "- Terraform declaration parser: \(.authority.terraform_declaration_parser) \(.authority.terraform_parser_version)","- Terraform validation: \(.authority.terraform_validation)","- Terraform execution: \(.authority.terraform_execution)","- live cloud state: \(.authority.live_cloud_state)","- deployment execution: \(.authority.deployment_execution)","- live network probe: \(.authority.live_network_probe)",
               "- deterministic replay: true","- local test executions: 0"' "$RUNNER_TEMP/infra-service-claim.json"
             jq -r '"- missing build: \(.summary.closed)/\(.summary.total), direct \(.summary.direct_missing), dependency \(.summary.dependency_blocked), \(.claim.stage) / \(.claim.step) / \(.claim.reason)",
               "- missing state: \(input_filename)"' "$RUNNER_TEMP/missing-build.json"
@@ -188,6 +253,7 @@ jobs:
             jq -r '"- ambiguous handler: CLOSED \(.summary.closed), REFUTED \(.summary.refuted), \(.claim.reason)"' "$RUNNER_TEMP/ambiguous-handler.json"
             jq -r '"- core identity mismatch: CLOSED \(.summary.closed), REFUTED \(.summary.refuted), \(.claim.reason)"' "$RUNNER_TEMP/identity-mismatch.json"
             jq -r '"- deployment drift: CLOSED \(.summary.closed), REFUTED \(.summary.refuted), \(.claim.reason)"' "$RUNNER_TEMP/deployment-drift.json"
+            jq -r '"- missing HCL: CLOSED \(.summary.closed), UNKNOWN \(.summary.unknown), \(.claim.reason)","- context-missing HCL: CLOSED \(input.summary.closed), UNKNOWN \(input.summary.unknown), \(input.claim.reason)","- invalid HCL: CLOSED \(input.summary.closed), REFUTED \(input.summary.refuted), \(input.claim.reason)","- mismatched HCL: CLOSED \(input.summary.closed), REFUTED \(input.summary.refuted), \(input.claim.reason)"' "$RUNNER_TEMP/missing-hcl.json" "$RUNNER_TEMP/context-hcl.json" "$RUNNER_TEMP/invalid-hcl.json" "$RUNNER_TEMP/mismatched-hcl.json"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Enforce zero repository writes
         run: test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -199,8 +265,12 @@ jobs:
             ${{ runner.temp }}/go-toolchain.json
             ${{ runner.temp }}/gofmt.diff
             ${{ runner.temp }}/go-fix.diff
+            ${{ runner.temp }}/hcl-go-fix.diff
+            ${{ runner.temp }}/hcl-parser-module.json
+            ${{ runner.temp }}/hcl-module-download.json
             ${{ runner.temp }}/runtime-v2.json
             ${{ runner.temp }}/enriched-graph.json
+            ${{ runner.temp }}/hcl-declaration.json
             ${{ runner.temp }}/service-symbol.json
             ${{ runner.temp }}/infra-service-claim.json
             ${{ runner.temp }}/replay.json
@@ -209,3 +279,7 @@ jobs:
             ${{ runner.temp }}/ambiguous-handler.json
             ${{ runner.temp }}/identity-mismatch.json
             ${{ runner.temp }}/deployment-drift.json
+            ${{ runner.temp }}/missing-hcl.json
+            ${{ runner.temp }}/context-hcl.json
+            ${{ runner.temp }}/invalid-hcl.json
+            ${{ runner.temp }}/mismatched-hcl.json
