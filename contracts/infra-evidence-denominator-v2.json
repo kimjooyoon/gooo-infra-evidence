@@ -1,0 +1,29 @@
+{
+  "schema": "gooo/evidence-generator/denominator/v1",
+  "id": "gooo://denominator/infra-service-symbol-evidence/v2",
+  "target_cells": 12,
+  "proof_totals": [
+    {"proof_choice": "FOUNDATION", "total": 4},
+    {"proof_choice": "COHERENCE", "total": 6},
+    {"proof_choice": "REGRESSION", "total": 2}
+  ],
+  "indicator_totals": [
+    {"indicator_class": "OUTCOME", "total": 3},
+    {"indicator_class": "DRIVER", "total": 5},
+    {"indicator_class": "GUARDRAIL", "total": 4}
+  ],
+  "cells": [
+    {"ordinal": 1, "id": "RELEASED_GOOO_IDENTITY", "activity": "ObserveReleasedGoooIdentity", "stage": "CORE_RELEASE", "step": "OBSERVE_RELEASED_GOOO_IDENTITY", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "core_identity_anchor": true, "closed_reason": "RELEASED_GOOO_IDENTITY_OBSERVED", "unknown_reason": "RELEASED_GOOO_IDENTITY_UNAVAILABLE", "next_operation": "FETCH_PINNED_GOOO_RELEASE", "depends_on": []},
+    {"ordinal": 2, "id": "GOOO_SOURCE_AUTHORITY", "activity": "DeclareInfraAuthority", "stage": "AUTHORITY", "step": "DECLARE_INFRA_AUTHORITY", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "closed_reason": "GOOO_INFRA_AUTHORITY_DECLARED", "unknown_reason": "GOOO_INFRA_AUTHORITY_UNAVAILABLE", "next_operation": "PROVIDE_GOOO_INFRA_AUTHORITY", "depends_on": ["RELEASED_GOOO_IDENTITY"]},
+    {"ordinal": 3, "id": "GOOO_GRAPH_BINDING", "activity": "BindInfraActivities", "stage": "META", "step": "BIND_INFRA_ACTIVITIES", "proof_choice": "COHERENCE", "indicator_class": "DRIVER", "closed_reason": "GOOO_INFRA_ACTIVITIES_BOUND", "unknown_reason": "GOOO_GRAPH_UNAVAILABLE", "next_operation": "BIND_RELEASED_ACTIVITY_RECEIPTS", "depends_on": ["RELEASED_GOOO_IDENTITY", "GOOO_SOURCE_AUTHORITY"]},
+    {"ordinal": 4, "id": "TERRAFORM_DECLARATION", "activity": "ObserveTerraformDeclaration", "stage": "INFRA_DECLARATION", "step": "OBSERVE_TERRAFORM_DECLARATION", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "closed_reason": "TERRAFORM_DECLARATION_OBSERVED", "unknown_reason": "TERRAFORM_DECLARATION_UNAVAILABLE", "next_operation": "PROVIDE_TERRAFORM_DECLARATION", "depends_on": ["RELEASED_GOOO_IDENTITY"]},
+    {"ordinal": 5, "id": "TERRAFORM_PLAN", "activity": "BindTerraformPlan", "stage": "INFRA_PLAN", "step": "BIND_TERRAFORM_PLAN", "proof_choice": "COHERENCE", "indicator_class": "GUARDRAIL", "closed_reason": "TERRAFORM_PLAN_BOUND", "unknown_reason": "TERRAFORM_PLAN_UNAVAILABLE", "next_operation": "PROVIDE_TERRAFORM_PLAN_RECEIPT", "depends_on": ["RELEASED_GOOO_IDENTITY", "TERRAFORM_DECLARATION"]},
+    {"ordinal": 6, "id": "TERRAFORM_STATE", "activity": "BindTerraformState", "stage": "INFRA_STATE", "step": "BIND_TERRAFORM_STATE", "proof_choice": "COHERENCE", "indicator_class": "GUARDRAIL", "closed_reason": "TERRAFORM_STATE_BOUND", "unknown_reason": "TERRAFORM_STATE_UNAVAILABLE", "next_operation": "PROVIDE_TERRAFORM_STATE_RECEIPT", "depends_on": ["RELEASED_GOOO_IDENTITY", "TERRAFORM_PLAN"]},
+    {"ordinal": 7, "id": "OPENAPI_CONTRACT", "activity": "ObserveOpenAPIContract", "stage": "API", "step": "OBSERVE_OPENAPI_CONTRACT", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "closed_reason": "OPENAPI_OPERATION_OBSERVED", "unknown_reason": "OPENAPI_OPERATION_UNAVAILABLE", "next_operation": "PROVIDE_OPENAPI_CONTRACT", "depends_on": ["RELEASED_GOOO_IDENTITY"]},
+    {"ordinal": 8, "id": "SERVICE_SYMBOL_BINDING", "activity": "BindServiceHandlerSymbol", "stage": "SERVICE_SYMBOL", "step": "BIND_OPENAPI_OPERATION_TO_GO_HANDLER", "proof_choice": "COHERENCE", "indicator_class": "GUARDRAIL", "closed_reason": "OPENAPI_OPERATION_BOUND_TO_GO_HANDLER", "unknown_reason": "SERVICE_SYMBOL_RECEIPT_UNAVAILABLE", "next_operation": "OBSERVE_GO_HANDLER_SYMBOL", "depends_on": ["RELEASED_GOOO_IDENTITY", "OPENAPI_CONTRACT"]},
+    {"ordinal": 9, "id": "SERVICE_ARTIFACT_PROVENANCE", "activity": "BindServiceArtifactProvenance", "stage": "BUILD", "step": "BIND_SERVICE_ARTIFACT_PROVENANCE", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "closed_reason": "SERVICE_ARTIFACT_PROVENANCE_BOUND", "unknown_reason": "SERVICE_ARTIFACT_PROVENANCE_UNAVAILABLE", "next_operation": "PROVIDE_BUILD_RECEIPT", "depends_on": ["RELEASED_GOOO_IDENTITY", "TERRAFORM_DECLARATION", "TERRAFORM_PLAN", "SERVICE_SYMBOL_BINDING"]},
+    {"ordinal": 10, "id": "DEPLOYMENT_OUTPUT", "activity": "BindDeploymentOutput", "stage": "DEPLOYMENT", "step": "BIND_DEPLOYMENT_OUTPUT", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "closed_reason": "DEPLOYMENT_OUTPUT_BOUND", "unknown_reason": "DEPLOYMENT_OUTPUT_UNAVAILABLE", "next_operation": "PROVIDE_DEPLOYMENT_RECEIPT", "depends_on": ["RELEASED_GOOO_IDENTITY", "TERRAFORM_STATE", "SERVICE_ARTIFACT_PROVENANCE"]},
+    {"ordinal": 11, "id": "RUNTIME_DRIFT_REGRESSION", "activity": "ObserveRuntimeDrift", "stage": "RUNTIME", "step": "OBSERVE_RUNTIME_DRIFT", "proof_choice": "REGRESSION", "indicator_class": "OUTCOME", "closed_reason": "RUNTIME_REGRESSION_OBSERVED", "unknown_reason": "RUNTIME_OBSERVATIONS_UNAVAILABLE", "next_operation": "PROVIDE_TWO_RUNTIME_OBSERVATIONS", "depends_on": ["RELEASED_GOOO_IDENTITY", "OPENAPI_CONTRACT", "SERVICE_SYMBOL_BINDING", "DEPLOYMENT_OUTPUT"]},
+    {"ordinal": 12, "id": "READ_ONLY_EFFECT", "activity": "ObserveReadOnlyEffect", "stage": "EFFECT", "step": "OBSERVE_READ_ONLY_EFFECT", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "closed_reason": "REPOSITORY_ZERO_WRITE_OBSERVED", "unknown_reason": "REPOSITORY_EFFECT_UNAVAILABLE", "next_operation": "COMPARE_REPOSITORY_SNAPSHOTS", "depends_on": ["RELEASED_GOOO_IDENTITY", "GOOO_GRAPH_BINDING"]}
+  ]
+}

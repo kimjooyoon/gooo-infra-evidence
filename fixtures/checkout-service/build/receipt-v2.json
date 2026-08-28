@@ -1,0 +1,18 @@
+{
+  "schema": "gooo/build-receipt/v2",
+  "builder": "captured-fixture-builder/v2",
+  "materials": [
+    {
+      "kind": "SERVICE_SOURCE",
+      "path": "service/main-v2.go",
+      "digest": "sha256:493bd5331fbb241799be0714e6ad79c3ca98270b5e2bc1db9d1983e462f56591",
+      "handler_symbol": "health"
+    }
+  ],
+  "products": [
+    {
+      "kind": "OCI_ARTIFACT",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

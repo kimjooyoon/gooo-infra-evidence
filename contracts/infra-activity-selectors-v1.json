@@ -1,0 +1,18 @@
+{
+  "schema": "gooo/evidence-generator/activity-selector-set/v1",
+  "role": "project_graph",
+  "selectors": [
+    {"ordinal": 1, "id": "RELEASED_GOOO_IDENTITY", "activity": "ObserveReleasedGoooIdentity", "selector": {"name": "ObserveReleasedGoooIdentity", "namespace": "checkoutinfra"}},
+    {"ordinal": 2, "id": "GOOO_SOURCE_AUTHORITY", "activity": "DeclareInfraAuthority", "selector": {"name": "DeclareInfraAuthority", "namespace": "checkoutinfra"}},
+    {"ordinal": 3, "id": "GOOO_GRAPH_BINDING", "activity": "BindInfraActivities", "selector": {"name": "BindInfraActivities", "namespace": "checkoutinfra"}},
+    {"ordinal": 4, "id": "TERRAFORM_DECLARATION", "activity": "ObserveTerraformDeclaration", "selector": {"name": "ObserveTerraformDeclaration", "namespace": "checkoutinfra"}},
+    {"ordinal": 5, "id": "TERRAFORM_PLAN", "activity": "BindTerraformPlan", "selector": {"name": "BindTerraformPlan", "namespace": "checkoutinfra"}},
+    {"ordinal": 6, "id": "TERRAFORM_STATE", "activity": "BindTerraformState", "selector": {"name": "BindTerraformState", "namespace": "checkoutinfra"}},
+    {"ordinal": 7, "id": "OPENAPI_CONTRACT", "activity": "ObserveOpenAPIContract", "selector": {"name": "ObserveOpenAPIContract", "namespace": "checkoutinfra"}},
+    {"ordinal": 8, "id": "SERVICE_SYMBOL_BINDING", "activity": "BindServiceHandlerSymbol", "selector": {"name": "BindServiceHandlerSymbol", "namespace": "checkoutinfra"}},
+    {"ordinal": 9, "id": "SERVICE_ARTIFACT_PROVENANCE", "activity": "BindServiceArtifactProvenance", "selector": {"name": "BindServiceArtifactProvenance", "namespace": "checkoutinfra"}},
+    {"ordinal": 10, "id": "DEPLOYMENT_OUTPUT", "activity": "BindDeploymentOutput", "selector": {"name": "BindDeploymentOutput", "namespace": "checkoutinfra"}},
+    {"ordinal": 11, "id": "RUNTIME_DRIFT_REGRESSION", "activity": "ObserveRuntimeDrift", "selector": {"name": "ObserveRuntimeDrift", "namespace": "checkoutinfra"}},
+    {"ordinal": 12, "id": "READ_ONLY_EFFECT", "activity": "ObserveReadOnlyEffect", "selector": {"name": "ObserveReadOnlyEffect", "namespace": "checkoutinfra"}}
+  ]
+}
