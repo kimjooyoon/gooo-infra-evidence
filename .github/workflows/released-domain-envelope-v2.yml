@@ -305,10 +305,10 @@ jobs:
           regular_files=$(find . -path './.git' -prune -o -type f ! -path './README.md' -print | wc -l | tr -d ' ')
           descendant_directories=$(find . -path './.git' -prune -o -mindepth 1 -type d -print | wc -l | tr -d ' ')
           module_roots=$(find . -path './.git' -prune -o -name go.mod -print | sed 's#^\./##' | sort | jq -R -s 'split("\n")|map(select(length>0) and .)')
-          go_files=$(jq '[.[]|select(.language=="Go")]|length' "$WORK_DIR/source-lines.ndjson")
-          go_lines=$(jq '[.[]|select(.language=="Go")|.physical_lines]|add//0' "$WORK_DIR/source-lines.ndjson")
-          gooo_files=$(jq '[.[]|select(.language=="Gooo")]|length' "$WORK_DIR/source-lines.ndjson")
-          gooo_lines=$(jq '[.[]|select(.language=="Gooo")|.physical_lines]|add//0' "$WORK_DIR/source-lines.ndjson")
+          go_files=$(jq -s '[.[]|select(.language=="Go")]|length' "$WORK_DIR/source-lines.ndjson")
+          go_lines=$(jq -s '[.[]|select(.language=="Go")|.physical_lines]|add//0' "$WORK_DIR/source-lines.ndjson")
+          gooo_files=$(jq -s '[.[]|select(.language=="Gooo")]|length' "$WORK_DIR/source-lines.ndjson")
+          gooo_lines=$(jq -s '[.[]|select(.language=="Gooo")|.physical_lines]|add//0' "$WORK_DIR/source-lines.ndjson")
           go_version=$(go env GOVERSION)
           jq -S -n \
             --arg subject "$SUBJECT_SHA" --arg go_version "$go_version" \
