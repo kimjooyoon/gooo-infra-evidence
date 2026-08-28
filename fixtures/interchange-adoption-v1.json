@@ -1,0 +1,23 @@
+{
+  "schema": "gooo/infra-evidence/interchange-adoption-profile/v1",
+  "fixture_id": "infra-evidence-interchange-adoption",
+  "domain": "infra-evidence",
+  "project": {
+    "id": "gooo://project/infra-evidence",
+    "repository": "kimjooyoon/gooo-infra-evidence",
+    "release_tag": "v0.4.0-dev",
+    "source_path": "fixtures/checkout-service"
+  },
+  "relation": {
+    "id": "gooo://interchange/relation/infra-evidence-adopts-v1",
+    "kind": "ADOPTS_INTERCHANGE_ENVELOPE",
+    "state": "MATCH",
+    "left": {"kind": "gooo/infra-evidence/report/v2", "id": "checkout://infra/report/evidence-v2"},
+    "right": {"kind": "gooo/interchange/specification-report/v1", "id": "gooo://interchange/specification/v0.1.0-dev"},
+    "stage": "ADOPTION",
+    "step": "VERIFY_PINNED_INTERCHANGE_SPECIFICATION",
+    "reason": "PINNED_INTERCHANGE_SPECIFICATION_MATCH",
+    "unknown_class": null,
+    "next_operation": "NONE"
+  }
+}
