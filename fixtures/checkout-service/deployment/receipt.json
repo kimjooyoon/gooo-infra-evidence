@@ -1,0 +1,4 @@
+{
+  "schema":"gooo/deployment-receipt/v1","target":"prod/checkout","deployment_id":"svc-checkout-prod",
+  "artifact_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","generation":7,"observed_generation":7
+}

@@ -1,0 +1,115 @@
+name: Infra service evidence
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    env:
+      SUBJECT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SUBJECT_SHA }}
+      - name: Bind exact subject identity
+        run: test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+      - name: Observe and download released Gooo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          lock=contracts/core-release-lock-v1.json
+          repository=$(jq -r .repository "$lock"); tag=$(jq -r .tag "$lock")
+          gh api "repos/$repository/releases/tags/$tag" > "$RUNNER_TEMP/release.json"
+          gh api "repos/$repository/git/ref/tags/$tag" > "$RUNNER_TEMP/ref.json"
+          object_sha=$(jq -r '.object.sha' "$RUNNER_TEMP/ref.json")
+          gh api "repos/$repository/git/tags/$object_sha" > "$RUNNER_TEMP/tag.json"
+          jq -e --slurpfile ref "$RUNNER_TEMP/ref.json" --slurpfile tag "$RUNNER_TEMP/tag.json" \
+            '.tag_name=="v0.1.0-dev" and .draft==false and .prerelease==true and $ref[0].object.type=="tag" and
+             $ref[0].object.sha=="b0f6d7efcd6f6a2f8da177781a2cd8cef9defa31" and $tag[0].object.sha=="cf07bc02cda5cc0a05019d2ad63faeb3fa9edb28"' "$RUNNER_TEMP/release.json" >/dev/null
+          binary=$(jq -r '.consumer.binary_asset' "$lock"); checksums=$(jq -r '.consumer.checksum_asset' "$lock")
+          mkdir -p "$RUNNER_TEMP/assets" "$RUNNER_TEMP/gooo"
+          for name in "$binary" "$checksums"; do
+            url=$(jq -r --arg name "$name" '.assets[]|select(.name==$name)|.browser_download_url' "$RUNNER_TEMP/release.json")
+            curl --fail --location --retry 3 "$url" --output "$RUNNER_TEMP/assets/$name"
+          done
+          actual="sha256:$(sha256sum "$RUNNER_TEMP/assets/$binary"|awk '{print $1}')"
+          locked=$(jq -r --arg name "$binary" '.assets[]|select(.name==$name)|.digest' "$lock")
+          indexed="sha256:$(awk -v name="$binary" '$2==name {print $1}' "$RUNNER_TEMP/assets/$checksums")"
+          test "$actual" = "$locked"; test "$actual" = "$indexed"
+          tar -xzf "$RUNNER_TEMP/assets/$binary" -C "$RUNNER_TEMP/gooo"
+      - name: Observe released compiler and read-only effect
+        run: |
+          set -euo pipefail
+          authority=examples/checkout-service/main.gooo
+          before="$RUNNER_TEMP/before.bin"; after="$RUNNER_TEMP/after.bin"
+          git status --porcelain=v1 -z --untracked-files=all > "$before"
+          "$RUNNER_TEMP/gooo/gooo" version --json > "$RUNNER_TEMP/version.json"
+          "$RUNNER_TEMP/gooo/gooo" check --json "$authority" > "$RUNNER_TEMP/syntax.json"
+          "$RUNNER_TEMP/gooo/gooo" check --semantic --json "$authority" > "$RUNNER_TEMP/semantic.json"
+          start_ns=$(date +%s%N)
+          /usr/bin/time -v -o "$RUNNER_TEMP/time.txt" "$RUNNER_TEMP/gooo/gooo" graph dump "$authority" > "$RUNNER_TEMP/graph.json"
+          end_ns=$(date +%s%N); wall_ms=$(( (end_ns-start_ns)/1000000 ))
+          peak_rss_kib=$(awk -F: '/Maximum resident set size/ {gsub(/ /,"",$2); print $2}' "$RUNNER_TEMP/time.txt")
+          git status --porcelain=v1 -z --untracked-files=all > "$after"
+          if cmp -s "$before" "$after"; then writes=0; else writes=1; fi
+          before_digest="sha256:$(sha256sum "$before"|awk '{print $1}')"; after_digest="sha256:$(sha256sum "$after"|awk '{print $1}')"
+          jq -n --arg head "$SUBJECT_SHA" --arg before_digest "$before_digest" --arg after_digest "$after_digest" \
+            --argjson writes "$writes" --argjson peak_rss_kib "$peak_rss_kib" --argjson wall_ms "$wall_ms" \
+            --slurpfile version "$RUNNER_TEMP/version.json" --slurpfile syntax "$RUNNER_TEMP/syntax.json" \
+            --slurpfile semantic "$RUNNER_TEMP/semantic.json" --slurpfile graph "$RUNNER_TEMP/graph.json" \
+            '{schema:"gooo/infra-evidence/runtime-observation/v1",subject_sha:$head,release_identity_observed:true,
+              version:$version[0],syntax_check:$syntax[0],semantic_check:$semantic[0],graph:$graph[0],
+              performance:{graph_peak_rss_kib:$peak_rss_kib,graph_wall_ms:$wall_ms},repository:{before_digest:$before_digest,after_digest:$after_digest,writes:$writes}}' > "$RUNNER_TEMP/runtime.json"
+      - name: Evaluate complete, missing, and drifted evidence
+        run: |
+          set -euo pipefail
+          candidate=fixtures/checkout-service
+          bash scripts/evaluate.sh "$GITHUB_WORKSPACE" "$candidate" "$RUNNER_TEMP/runtime.json" "$RUNNER_TEMP/report.json" "$SUBJECT_SHA" complete
+          bash scripts/evaluate.sh "$GITHUB_WORKSPACE" "$candidate" "$RUNNER_TEMP/runtime.json" "$RUNNER_TEMP/replay.json" "$SUBJECT_SHA" complete
+          cmp -s "$RUNNER_TEMP/report.json" "$RUNNER_TEMP/replay.json"
+          jq -e '.decision=="EVIDENCE_CHAIN_CLOSED" and .summary=={total:12,closed:12,unknown:0,refuted:0,direct_missing:0,dependency_blocked:0,repository_writes:0} and
+            .authority.activity_bindings==12 and ([.proofs[]|select(.closed==.total)]|length)==3 and
+            (.indicators[]|select(.id=="gooo.metric.infra-evidence.provenance-edges.v1")|.value==5 and .total==5)' "$RUNNER_TEMP/report.json" >/dev/null
+          cp -R "$candidate" "$RUNNER_TEMP/missing-state"
+          rm "$RUNNER_TEMP/missing-state/terraform/state.json"
+          bash scripts/evaluate.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/missing-state" "$RUNNER_TEMP/runtime.json" "$RUNNER_TEMP/missing-state.json" "$SUBJECT_SHA" missing-state
+          jq -e '.decision=="INCOMPLETE" and .summary.closed==9 and .summary.unknown==3 and .summary.refuted==0 and .summary.direct_missing==1 and .summary.dependency_blocked==2 and
+            .claim.stage=="INFRA_STATE" and .claim.step=="BIND_TERRAFORM_STATE" and .claim.reason=="TERRAFORM_STATE_UNAVAILABLE" and .claim.unknown_class=="DIRECT_MISSING" and
+            ([.cells[]|select(.unknown_class=="DEPENDENCY_BLOCKED")]|length)==2' "$RUNNER_TEMP/missing-state.json" >/dev/null
+          cp -R "$candidate" "$RUNNER_TEMP/artifact-drift"
+          jq '.artifact_digest="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"' "$RUNNER_TEMP/artifact-drift/deployment/receipt.json" > "$RUNNER_TEMP/drift.json"
+          mv "$RUNNER_TEMP/drift.json" "$RUNNER_TEMP/artifact-drift/deployment/receipt.json"
+          bash scripts/evaluate.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/artifact-drift" "$RUNNER_TEMP/runtime.json" "$RUNNER_TEMP/artifact-drift.json" "$SUBJECT_SHA" artifact-drift
+          jq -e '.decision=="FAIL_CLOSED" and .summary.closed==10 and .summary.refuted==2 and .claim.stage=="DEPLOYMENT" and
+            .claim.step=="BIND_DEPLOYMENT_OUTPUT" and .claim.reason=="ARTIFACT_IDENTITY_MISMATCH"' "$RUNNER_TEMP/artifact-drift.json" >/dev/null
+      - name: Publish exact evidence indicators
+        run: |
+          {
+            echo '## Infrastructure and service evidence'
+            echo
+            jq -r '"- decision: \(.decision)","- readiness: \(.summary.closed)/\(.summary.total) CLOSED; UNKNOWN \(.summary.unknown); REFUTED \(.summary.refuted)",
+              (.indicators[]|if has("total") then "- \(.id): \(.value)/\(.total) \(.unit) [\(.state)]" else "- \(.id): \(.value) \(.unit) [\(.state)]" end),
+              "- Terraform execution: \(.authority.terraform_execution)","- live cloud state: \(.authority.live_cloud_state)","- live network probe: \(.authority.live_network_probe)",
+              "- deterministic replay: true","- local test executions: 0"' "$RUNNER_TEMP/report.json"
+            jq -r '"- missing-state: direct missing \(.summary.direct_missing), dependency blocked \(.summary.dependency_blocked), first \(.claim.stage) / \(.claim.step) / \(.claim.reason)"' "$RUNNER_TEMP/missing-state.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Enforce read-only repository effect
+        run: test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: infra-evidence-${{ env.SUBJECT_SHA }}
+          path: |
+            ${{ runner.temp }}/runtime.json
+            ${{ runner.temp }}/report.json
+            ${{ runner.temp }}/replay.json
+            ${{ runner.temp }}/missing-state.json
+            ${{ runner.temp }}/artifact-drift.json

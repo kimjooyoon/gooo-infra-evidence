@@ -1,0 +1,29 @@
+package checkoutinfra
+namespace checkoutinfra
+
+entity GoooRelease id "checkout://infra/entity/gooo-release"
+entity InfraAuthority id "checkout://infra/entity/authority"
+entity InfraActivityGraph id "checkout://infra/entity/activity-graph"
+entity TerraformDeclaration id "checkout://infra/entity/terraform-declaration"
+entity TerraformPlan id "checkout://infra/entity/terraform-plan"
+entity TerraformState id "checkout://infra/entity/terraform-state"
+entity OpenAPIContract id "checkout://infra/entity/openapi-contract"
+entity ServiceArtifactProvenance id "checkout://infra/entity/service-artifact-provenance"
+entity DeploymentOutput id "checkout://infra/entity/deployment-output"
+entity PolicyDecision id "checkout://infra/entity/policy-decision"
+entity RuntimeObservationSet id "checkout://infra/entity/runtime-observation-set"
+entity ReadOnlyObservation id "checkout://infra/entity/read-only-observation"
+entity EvidenceDecision id "checkout://infra/entity/evidence-decision"
+
+activity ObserveReleasedGoooIdentity(GoooRelease) -> EvidenceDecision
+activity DeclareInfraAuthority(InfraAuthority) -> EvidenceDecision
+activity BindInfraActivities(InfraActivityGraph) -> EvidenceDecision
+activity ObserveTerraformDeclaration(TerraformDeclaration) -> EvidenceDecision
+activity BindTerraformPlan(TerraformPlan) -> EvidenceDecision
+activity BindTerraformState(TerraformState) -> EvidenceDecision
+activity ObserveOpenAPIContract(OpenAPIContract) -> EvidenceDecision
+activity BindServiceArtifactProvenance(ServiceArtifactProvenance) -> EvidenceDecision
+activity BindDeploymentOutput(DeploymentOutput) -> EvidenceDecision
+activity BindPolicyDecision(PolicyDecision) -> EvidenceDecision
+activity ObserveRuntimeDrift(RuntimeObservationSet) -> EvidenceDecision
+activity ObserveReadOnlyEffect(ReadOnlyObservation) -> EvidenceDecision
