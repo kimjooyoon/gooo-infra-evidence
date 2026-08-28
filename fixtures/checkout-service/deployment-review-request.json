@@ -1,0 +1,35 @@
+{
+  "schema": "gooo/infra-deployment-review-request/v1",
+  "request_id": "checkout-prod-deployment-contract-v1",
+  "project_id": "checkout://service/v2",
+  "environment": "prod",
+  "owner": "checkout-service",
+  "reviewer": "platform-runtime",
+  "expected": {
+    "terraform_resource": "example_service.checkout",
+    "deployment_target": "prod/checkout",
+    "artifact_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "openapi_method": "GET",
+    "openapi_path": "/health",
+    "openapi_operation": "getHealth",
+    "go_handler": "health"
+  },
+  "required_outputs": [
+    "deployment-contract.json",
+    "deployment-generation-manifest.json",
+    "deployment-runbook.md"
+  ],
+  "policy": {
+    "required_infra_cells": 12,
+    "required_semantic_edges": 6,
+    "required_runtime_observations": 2,
+    "allowed_refuted_cells": 0
+  },
+  "authority": {
+    "terraform_apply_authorized": false,
+    "deployment_execution_authorized": false,
+    "network_probe_authorized": false,
+    "repository_writes_authorized": false,
+    "cross_project_required_gates": 0
+  }
+}

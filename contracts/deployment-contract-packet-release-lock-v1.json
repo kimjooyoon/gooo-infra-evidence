@@ -1,0 +1,42 @@
+{
+  "schema": "gooo/infra-evidence/deployment-contract-packet-release-lock/v1",
+  "core": {
+    "repository": "kimjooyoon/meta-ontology-go",
+    "tag": "v0.3.0-dev",
+    "release_id": 378384811,
+    "target_commit_sha": "5b7af77549d88ba345550c1428323797e6ce1fd8",
+    "archive_type": "tar.gz",
+    "asset": {
+      "id": 533579198,
+      "name": "gooo-linux-amd64.tar.gz",
+      "size": 7036826,
+      "digest": "sha256:505608f28ccc92ba191d590b3cac160be14955405c159f9dc7fb3c8826985a5e"
+    }
+  },
+  "infra_evidence": {
+    "repository": "kimjooyoon/gooo-infra-evidence",
+    "tag": "v0.5.0-dev",
+    "release_id": 378332037,
+    "target_commit_sha": "bbe32a92bf40d1e4f290a911eb4756a6018c1a6d",
+    "archive_type": "zip",
+    "asset": {
+      "id": 533458255,
+      "name": "gooo-infra-evidence-v0.5.0-dev-actions.zip",
+      "size": 43448,
+      "digest": "sha256:1e82cb083654b93991172f513157bb97586acc99e5a75ca9c14d58fcfb63ca5b"
+    }
+  },
+  "claim_adoption": {
+    "repository": "kimjooyoon/gooo-infra-evidence",
+    "tag": "v0.6.0-dev",
+    "release_id": 378440932,
+    "target_commit_sha": "89b2b14ef6e30225e874fa029e1b46613d2d8d33",
+    "archive_type": "zip",
+    "asset": {
+      "id": 533706593,
+      "name": "infra-claim-resolution-adoption-89b2b14ef6e30225e874fa029e1b46613d2d8d33.zip",
+      "size": 30893,
+      "digest": "sha256:199d4cb08eb772fd85ce08786ca9f84bdb28eeb9c74705772b6635cf75ee9c4a"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+package deploymentcontractpacket
+namespace deploymentcontractpacket
+
+entity PacketAuthority id "infra://deployment-packet/authority"
+entity CoreClaimRelease id "infra://deployment-packet/core-release"
+entity InfraEvidenceRelease id "infra://deployment-packet/infra-release"
+entity ClaimAdoptionRelease id "infra://deployment-packet/claim-release"
+entity DeploymentReviewRequest id "infra://deployment-packet/request"
+entity TerraformDeploymentBinding id "infra://deployment-packet/terraform-binding"
+entity OpenAPIServiceBinding id "infra://deployment-packet/service-binding"
+entity ArtifactDeploymentChain id "infra://deployment-packet/artifact-chain"
+entity DeploymentPacketArtifacts id "infra://deployment-packet/artifacts"
+entity ClaimResolutionPrimitive id "gooo://claim-resolution/gooo.primitive.claim-resolution-tuple.v1"
+entity PacketFailure id "infra://deployment-packet/failure"
+entity PacketRuntime id "infra://deployment-packet/runtime"
+entity PacketDecision id "infra://deployment-packet/decision"
+
+activity BindDeploymentPacketAuthority(PacketAuthority) -> PacketDecision
+activity ObserveCoreClaimRelease(CoreClaimRelease) -> PacketDecision
+activity ObserveInfraEvidenceRelease(InfraEvidenceRelease) -> PacketDecision
+activity ObserveClaimAdoptionRelease(ClaimAdoptionRelease) -> PacketDecision
+activity ObserveDeploymentReviewRequest(DeploymentReviewRequest) -> PacketDecision
+activity ProjectTerraformDeploymentBinding(InfraEvidenceRelease) -> TerraformDeploymentBinding
+activity ProjectOpenAPIServiceBinding(InfraEvidenceRelease) -> OpenAPIServiceBinding
+activity ProjectArtifactDeploymentChain(InfraEvidenceRelease) -> ArtifactDeploymentChain
+activity GenerateDeploymentPacketArtifacts(ArtifactDeploymentChain) -> DeploymentPacketArtifacts
+activity ResolveDeploymentPacketReady(DeploymentPacketArtifacts) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=CLOSED;stage=NONE;step=NONE;reason=INFRA_DEPLOYMENT_CONTRACT_PACKET_GENERATED;unknown_class=NONE;next_operation=NONE"
+activity PreserveMissingStateUnknown(PacketFailure) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=UNKNOWN;stage=INFRA_STATE;step=BIND_TERRAFORM_STATE;reason=TERRAFORM_STATE_UNAVAILABLE;unknown_class=DIRECT_MISSING;next_operation=PROVIDE_TERRAFORM_STATE_RECEIPT"
+activity RefuteArtifactIdentityDrift(PacketFailure) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=REFUTED;stage=DEPLOYMENT;step=BIND_DEPLOYMENT_OUTPUT;reason=ARTIFACT_IDENTITY_MISMATCH;unknown_class=NONE;next_operation=RESTORE_DEPLOYMENT_ARTIFACT_IDENTITY"
+activity RefuteHandlerAmbiguity(PacketFailure) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=REFUTED;stage=SERVICE_SYMBOL;step=BIND_OPENAPI_OPERATION_TO_GO_HANDLER;reason=GO_HANDLER_REGISTRATION_CARDINALITY_MISMATCH;unknown_class=NONE;next_operation=RESTORE_UNIQUE_METHOD_PATH_REGISTRATION"
+activity RefuteExecutionAuthority(PacketFailure) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=REFUTED;stage=AUTHORITY;step=BIND_DEPLOYMENT_PACKET_AUTHORITY;reason=EXECUTION_AUTHORITY_ESCALATED;unknown_class=NONE;next_operation=REMOVE_APPLY_AND_DEPLOY_AUTHORITY"
+activity ObserveDeploymentPacketRuntime(PacketRuntime) -> PacketDecision
