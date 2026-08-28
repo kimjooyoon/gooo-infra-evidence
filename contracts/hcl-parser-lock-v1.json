@@ -1,0 +1,12 @@
+{
+  "schema": "gooo/infra-evidence/hcl-parser-lock/v1",
+  "module": "github.com/hashicorp/hcl/v2",
+  "version": "v2.24.0",
+  "sum": "h1:2QJdZ454DSsYGoaE6QheQZjtKZSUs9Nh2izTWiwQxvE=",
+  "go_mod_sum": "h1:oGoO1FIQYfn/AgyOhlg9qLC6/nOJPX3qGbkZpYAcqfM=",
+  "package": "github.com/hashicorp/hcl/v2/hclsyntax",
+  "parser_api": "hclsyntax.ParseConfig",
+  "go_version": "1.27.x",
+  "activity": "ObserveTerraformDeclaration",
+  "source_effect": "READ_ONLY"
+}
