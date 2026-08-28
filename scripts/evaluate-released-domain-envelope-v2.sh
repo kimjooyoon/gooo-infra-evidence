@@ -141,7 +141,7 @@ jq -S -n \
   (reduce $d.cells[] as $cell ([ ];
     . as $prior |
     (direct($cell)) as $candidate |
-    ([$prior[] as $p | select(($cell.depends_on | index($p.id)) != null)]) as $dependencies |
+    ([$prior[] | . as $p | select(($cell.depends_on | index($p.id)) != null)]) as $dependencies |
     ([$dependencies[] | select(.state=="REFUTED")]) as $refuted_dependencies |
     ([$dependencies[] | select(.state=="UNKNOWN")]) as $unknown_dependencies |
     if $candidate.state=="REFUTED" then .+[$candidate]
