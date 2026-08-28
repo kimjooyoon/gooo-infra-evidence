@@ -88,6 +88,7 @@ The workflow then creates four actual evaluator reports from the same bundle:
    `blocked_by`.
 3. A malformed `UNKNOWN` receipt yields `REFUTED`.
 4. A `FIXED_POINT` receipt yields `REFUTED`.
+5. An unrecognized top-level decision yields `REFUTED`.
 
 Only after those reports are hashed are their report digests merged into the
 facts file. The final normal evaluator then runs from the merged facts. This
@@ -120,6 +121,7 @@ The PR CI reports the following observed targets independently:
 | Kit source checkout / conformer copy | 0/0 |
 | Released adoption | 0/1 UNKNOWN |
 | External utility | 0/1 UNKNOWN |
+| Exact before/after improvement | 0/1 UNKNOWN |
 
 CI also records the actual Go `1.27.x` version, physical Go and Gooo lines
 per file, regular files, descendant directories, module roots, empty go-fix
@@ -136,7 +138,14 @@ cross-product consumer with independent lifecycle, external utility evidence,
 or authority that cannot remain Infra read-only. Those conditions are not
 observed here.
 
+The current-run source observation records the released v0.8 plan's six
+activities, eight typed dependencies, four dependency kinds, six prior
+semantic edges, one OpenAPI binding, one Terraform binding, and four
+deployment-chain cells. These values are read from the immutable plan asset;
+they are not closed by Gooo declarations alone.
+
 Disposition: **DEFER** pending released adoption and user-supplied external
-utility evidence. The implementation is not a Terraform/HCL runtime,
+utility evidence. Exact before/after improvement is also `0/1 UNKNOWN` before
+release. The implementation is not a Terraform/HCL runtime,
 OpenAPI Generator template, provider, deployment executor, or cross-project
 CI gate.

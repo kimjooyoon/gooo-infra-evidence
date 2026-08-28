@@ -28,11 +28,15 @@
     "refuted_paths_min": 1,
     "prior_infra": {
       "semantic_dependencies": 8,
+      "semantic_edges": 6,
+      "semantic_activities": 6,
+      "dependency_kinds": 4,
       "openapi_bindings": 1,
       "terraform_bindings": 1,
       "deployment_chain_cells": 4
     },
-    "released_adoption": {"observed": 0, "total": 1}
+    "released_adoption": {"observed": 0, "total": 1},
+    "exact_before_after_improvement": {"observed": 0, "total": 1}
   },
   "cells": [
     {"ordinal": 1, "id": "CORE_RELEASE", "activity": "ObserveCurrentCoreRelease", "stage": "CORE_RELEASE", "step": "OBSERVE_CURRENT_CORE_RELEASE", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "closed_reason": "CURRENT_CORE_RELEASE_OBSERVED", "unknown_reason": "CURRENT_CORE_RELEASE_UNAVAILABLE", "refuted_reason": "CURRENT_CORE_RELEASE_MISMATCH", "next_operation": "RESTORE_PINNED_CORE_RELEASE", "depends_on": []},

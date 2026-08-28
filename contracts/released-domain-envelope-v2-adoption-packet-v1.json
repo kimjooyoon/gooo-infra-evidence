@@ -24,6 +24,8 @@
     "released_domain_total": 1,
     "external_utility_observed": 0,
     "external_utility_total": 1,
+    "exact_before_after_improvement_observed": 0,
+    "exact_before_after_improvement_total": 1,
     "state": "UNKNOWN",
     "reason": "RELEASED_DOMAIN_ADOPTION_AND_EXTERNAL_UTILITY_NOT_OBSERVED"
   },

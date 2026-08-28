@@ -81,6 +81,9 @@ jq -S -n \
       $f.meta_activity_authority.resolutions_observed==$d.target_cells
     elif $id=="INFRA_DEPENDENCY_SOURCE" then
       $f.infra_dependency_source.relations_observed==$d.expected.relations and
+      $f.infra_dependency_source.prior_semantic_edges==$d.expected.prior_infra.semantic_edges and
+      $f.infra_dependency_source.semantic_activities_observed==$d.expected.prior_infra.semantic_activities and
+      $f.infra_dependency_source.dependency_kinds_observed==$d.expected.prior_infra.dependency_kinds and
       $f.infra_dependency_source.prior_openapi_bindings==$d.expected.prior_infra.openapi_bindings and
       $f.infra_dependency_source.prior_terraform_bindings==$d.expected.prior_infra.terraform_bindings and
       $f.infra_dependency_source.prior_deployment_chain_cells==$d.expected.prior_infra.deployment_chain_cells
@@ -107,10 +110,12 @@ jq -S -n \
       if $f.refuted_counterexamples==null then (($phase|tostring|startswith("unknown")) or ($phase|tostring|startswith("refuted")))
       else $f.refuted_counterexamples.reports_observed >= $d.expected.refuted_paths_min and
         $f.refuted_counterexamples.malformed_unknown_state=="REFUTED" and
-        $f.refuted_counterexamples.fixed_point_state=="REFUTED"
+        $f.refuted_counterexamples.fixed_point_state=="REFUTED" and
+        $f.refuted_counterexamples.unknown_top_level_state=="REFUTED"
       end
     elif $id=="AUTHORITY_BOUNDARY" then
       $f.authority.repository_writes==0 and $f.authority.local_tests==0 and
+      $f.authority.local_test_executions==0 and
       $f.authority.cross_project_required_gates==0 and
       $f.authority.kit_source_checkout==0 and $f.authority.conformer_copy==0 and
       ($f.authority.forbidden_authority_escalations|length)==0
@@ -169,15 +174,19 @@ jq -S -n \
      relations_observed:$f.envelope.relations,evidence_observed:$f.envelope.evidence,resolutions_observed:$f.envelope.resolutions,
      envelope_files:$f.envelope.files,kit_checks:$f.conformer.closed,kit_checks_total:$f.conformer.total,
      prior_semantic_dependencies:$f.infra_dependency_source.relations_observed,
+     prior_semantic_edges:$f.infra_dependency_source.prior_semantic_edges,
+     prior_semantic_activities:$f.infra_dependency_source.semantic_activities_observed,
+     prior_dependency_kinds:$f.infra_dependency_source.dependency_kinds_observed,
      prior_openapi_bindings:$f.infra_dependency_source.prior_openapi_bindings,
      prior_terraform_bindings:$f.infra_dependency_source.prior_terraform_bindings,
      prior_deployment_chain_cells:$f.infra_dependency_source.prior_deployment_chain_cells,
      normal_paths:$f.paths.normal,unknown_paths:$f.paths.unknown,refuted_paths:$f.paths.refuted,
      unknown_coordinates:$f.unknown_causality.coordinates_observed,source_replay:$f.replay.source_satisfied,file_replay:$f.replay.file_satisfied},
-   adoption:{released_domain:{observed:$d.expected.released_adoption.observed,total:$d.expected.released_adoption.total,state:"UNKNOWN",reason:"RELEASE_NOT_PUBLISHED"},external_utility:$f.utility},
+   adoption:{released_domain:{observed:$d.expected.released_adoption.observed,total:$d.expected.released_adoption.total,state:"UNKNOWN",reason:"RELEASE_NOT_PUBLISHED"},external_utility:$f.utility,exact_before_after_improvement:{observed:$d.expected.exact_before_after_improvement.observed,total:$d.expected.exact_before_after_improvement.total,state:"UNKNOWN",reason:"NO_PRE_RELEASE_EXACT_IMPROVEMENT_EVIDENCE"}},
    authority:$f.authority,artifacts:$f.artifacts,metrics:$f.metrics,
    proofs:([$d.proof_totals[]|.proof_choice] | map(. as $choice|{choice:$choice,closed:([$cells[]|select(.proof_choice==$choice and .state=="CLOSED")]|length),total:([$cells[]|select(.proof_choice==$choice)]|length)})),
    indicator_classes:([$d.indicator_totals[]|.indicator_class] | map(. as $class|{class:$class,closed:([$cells[]|select(.indicator_class==$class and .state=="CLOSED")]|length),total:([$cells[]|select(.indicator_class==$class)]|length)})),
+   cell_facts:($cells|map({id,activity,fact_observed:(.state=="CLOSED"),state})),
    cells:($cells|map(del(.closed_reason,.unknown_reason,.refuted_reason,.depends_on)))
   }
 ' > "$output"

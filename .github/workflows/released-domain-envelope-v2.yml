@@ -45,11 +45,11 @@ jobs:
           PACKET=contracts/released-domain-envelope-v2-adoption-packet-v1.json
           jq -e --arg sha "$SUBJECT_SHA" --arg repo "${{ github.repository }}" \
             '.schema=="gooo/infra-evidence/released-domain-envelope-v2-adoption-release-lock/v1" and
-             .authority.repository_writes==0 and .authority.local_tests==0 and
+             .authority.repository_writes==0 and .authority.local_tests==0 and .authority.local_test_executions==0 and
              .authority.cross_project_required_gates==0 and
              ($repo=="kimjooyoon/gooo-infra-evidence" or $repo=="${{ github.repository }}")' "$LOCK" >/dev/null
           jq -e '.schema=="gooo/infra-evidence/released-domain-envelope-v2-adoption-denominator/v1" and .target_cells==12 and (.cells|length)==12 and ([.cells[].id]|unique|length)==12 and ([.cells[].activity]|unique|length)==12' "$DENOM" >/dev/null
-          jq -e '.schema=="gooo/infra-evidence/released-domain-envelope-v2-adoption-packet/v1" and .adoption.released_domain_observed==0 and .adoption.released_domain_total==1' "$PACKET" >/dev/null
+          jq -e '.schema=="gooo/infra-evidence/released-domain-envelope-v2-adoption-packet/v1" and .adoption.released_domain_observed==0 and .adoption.released_domain_total==1 and .adoption.exact_before_after_improvement_observed==0 and .adoption.exact_before_after_improvement_total==1' "$PACKET" >/dev/null
 
           download_asset() {
             local repository=$1
@@ -138,7 +138,7 @@ jobs:
             "$(jq -r '.infra.assets.replay.size' "$LOCK")" \
             "$(jq -r '.infra.assets.replay.sha256' "$LOCK")" \
             "$WORK_DIR/infra/semantic-deployment-plan-replay.json"
-          jq -e '.schema=="gooo/infra-evidence/semantic-deployment-plan/v1" and .decision=="DEPLOYMENT_PLAN_GENERATED" and (.dependencies|length)==8 and .prior_contract.summary.openapi_bindings==1 and .prior_contract.summary.terraform_bindings==1 and .prior_contract.summary.deployment_chain_cells==4' "$WORK_DIR/infra/deployment-plan.json" >/dev/null
+          jq -e '.schema=="gooo/infra-evidence/semantic-deployment-plan/v1" and .decision=="DEPLOYMENT_PLAN_GENERATED" and (.dependencies|length)==8 and .summary.activities==6 and .summary.dependency_kinds==4 and .prior_contract.summary.semantic_edges==6 and .prior_contract.summary.openapi_bindings==1 and .prior_contract.summary.terraform_bindings==1 and .prior_contract.summary.deployment_chain_cells==4' "$WORK_DIR/infra/deployment-plan.json" >/dev/null
           jq -e '.schema=="gooo/infra-evidence/semantic-deployment-plan-replay/v1" and .comparisons_satisfied==.comparisons_total and .mismatches==0' "$WORK_DIR/infra/semantic-deployment-plan-replay.json" >/dev/null
 
       - name: Resolve twelve released Core activities
@@ -210,6 +210,7 @@ jobs:
           jq --arg activity "$target_activity" 'map(if .selector.name==$activity then (.decision="UNKNOWN" | .occurrences=0 | .claim.state="UNKNOWN" | .claim.reason="ACTIVITY_NOT_FOUND" | .claim.stage="RESOLUTION" | .claim.step="RESOLVE_ACTIVITY_CARDINALITY" | .claim.unknown_class="DIRECT_MISSING" | .claim.next_operation="PROVIDE_ACTIVITY_RESOLUTION_RECEIPT" | .claim.blocked_by=[]) else . end)' "$WORK_DIR/core-receipts.json" > "$WORK_DIR/core-valid-unknown.json"
           jq --arg activity "$target_activity" 'map(if .selector.name==$activity then (.decision="UNKNOWN" | .occurrences=1 | .claim.state="CLOSED" | .claim.reason="ACTIVITY_NOT_FOUND") else . end)' "$WORK_DIR/core-receipts.json" > "$WORK_DIR/core-malformed-unknown.json"
           jq --arg activity "$target_activity" 'map(if .selector.name==$activity then .decision="FIXED_POINT" else . end)' "$WORK_DIR/core-receipts.json" > "$WORK_DIR/core-fixed-point.json"
+          jq --arg activity "$target_activity" 'map(if .selector.name==$activity then .decision="UNRECOGNIZED_TOP_LEVEL_DECISION" else . end)' "$WORK_DIR/core-receipts.json" > "$WORK_DIR/core-unknown-decision.json"
 
           lines() { awk 'END {print NR+0}' "$1"; }
           bundle_digest=$(cd "$WORK_DIR/bundle-a" && sha256sum checksums.txt conformance.json evidence.ndjson project.json relations.ndjson replay.json resolutions.ndjson unknowns.ndjson | sha256sum | awk '{print $1}')
@@ -226,6 +227,9 @@ jobs:
             --argjson activities "$(jq '[.nodes[]|select(.kind=="Activity")]|length' "$WORK_DIR/core-graph.json")" \
             --argjson resolutions "$(jq 'length' "$WORK_DIR/core-receipts.json")" \
             --argjson prior_relations "$(jq '.dependencies|length' "$WORK_DIR/infra/deployment-plan.json")" \
+            --argjson prior_semantic_edges "$(jq '.prior_contract.summary.semantic_edges' "$WORK_DIR/infra/deployment-plan.json")" \
+            --argjson semantic_activities "$(jq '.summary.activities' "$WORK_DIR/infra/deployment-plan.json")" \
+            --argjson dependency_kinds "$(jq '.summary.dependency_kinds' "$WORK_DIR/infra/deployment-plan.json")" \
             --argjson prior_openapi "$(jq '.prior_contract.summary.openapi_bindings' "$WORK_DIR/infra/deployment-plan.json")" \
             --argjson prior_terraform "$(jq '.prior_contract.summary.terraform_bindings' "$WORK_DIR/infra/deployment-plan.json")" \
             --argjson prior_chain "$(jq '.prior_contract.summary.deployment_chain_cells' "$WORK_DIR/infra/deployment-plan.json")" \
@@ -236,26 +240,27 @@ jobs:
             --argjson files "$(find "$WORK_DIR/bundle-a" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d ' ')" \
             --argjson conformer_closed "$(jq '.summary.closed' "$WORK_DIR/conformance.json")" \
             --argjson conformer_total "$(jq '.summary.total' "$WORK_DIR/conformance.json")" \
+            --arg conformer_decision "$(jq -r '.decision' "$WORK_DIR/conformance.json")" \
             --argjson source_replay "$(jq 'if .comparisons_satisfied==.comparisons_total and .mismatches==0 then 1 else 0 end' "$WORK_DIR/infra/semantic-deployment-plan-replay.json")" \
             --argjson file_replay "$(jq '.comparisons_satisfied' "$WORK_DIR/file-replay.json")" \
-            --argjson normal_paths 1 --argjson unknown_paths 2 --argjson refuted_paths 2 \
+            --argjson projected "$(test -s "$WORK_DIR/bundle-a/project.json" && printf 1 || printf 0)" \
             '{schema:"gooo/infra-evidence/released-domain-envelope-v2-adoption-facts/v1",subject_sha:$subject,
               release_lock_verified:true,
               core_release:{verified:true,target_commit_sha:$core_target,asset_sha256:$core_asset},
               interchange_spec_release:{verified:true,target_commit_sha:$spec_target,asset_sha256:$spec_asset},
               infra_release:{verified:true,target_commit_sha:$infra_target,asset_sha256:$infra_asset},
               meta_activity_authority:{activities_observed:$activities,resolutions_observed:$resolutions},
-              infra_dependency_source:{relations_observed:$prior_relations,prior_openapi_bindings:$prior_openapi,prior_terraform_bindings:$prior_terraform,prior_deployment_chain_cells:$prior_chain},
-              product_projection:{observed:true,bundle_digest:$bundle_digest},
+              infra_dependency_source:{relations_observed:$prior_relations,prior_semantic_edges:$prior_semantic_edges,semantic_activities_observed:$semantic_activities,dependency_kinds_observed:$dependency_kinds,prior_openapi_bindings:$prior_openapi,prior_terraform_bindings:$prior_terraform,prior_deployment_chain_cells:$prior_chain},
+              product_projection:{observed:($projected==1),bundle_digest:$bundle_digest},
               envelope:{files:$files,relations:$relation_lines,evidence:$evidence_lines,resolutions:$resolution_lines,unknowns:$unknown_lines},
-              conformer:{decision:"CONFORMANT",closed:$conformer_closed,total:$conformer_total},
+              conformer:{decision:$conformer_decision,closed:$conformer_closed,total:$conformer_total},
               replay:{source_satisfied:$source_replay,file_satisfied:$file_replay},
               unknown_causality:null,refuted_counterexamples:null,
-              paths:{normal:$normal_paths,unknown:$unknown_paths,refuted:$refuted_paths},
-              authority:{repository_writes:0,local_tests:0,cross_project_required_gates:0,kit_source_checkout:0,conformer_copy:0,forbidden_authority_escalations:[]},
-              artifacts:{product_projection:1,envelope:8,relations:8,evidence:8,resolutions:8,conformer:10,source_replay:1,file_replay:8},
-              utility:{released_domain_adoption_observed:0,released_domain_adoption_total:1,external_utility_observed:0,external_utility_total:1,state:"UNKNOWN",reason:"NO_USER_EVIDENCE_OF_EXTERNAL_UTILITY"},
-              metrics:{go_setup:"1.27.x",bundle_digest:$bundle_digest,go_fix_executed:0,repository_writes:0,local_tests:0,cross_project_required_gates:0}}' > "$facts_base"
+              paths:{normal:null,unknown:null,refuted:null},
+              authority:{repository_writes:0,local_tests:0,local_test_executions:0,cross_project_required_gates:0,kit_source_checkout:0,conformer_copy:0,forbidden_authority_escalations:[]},
+              artifacts:{product_projection:$projected,envelope:$files,relations:$relation_lines,evidence:$evidence_lines,resolutions:$resolution_lines,conformer:$conformer_closed,source_replay:$source_replay,file_replay:$file_replay},
+              utility:{released_domain_adoption_observed:0,released_domain_adoption_total:1,external_utility_observed:0,external_utility_total:1,exact_before_after_improvement_observed:0,exact_before_after_improvement_total:1,state:"UNKNOWN",reason:"NO_USER_EVIDENCE_OF_EXTERNAL_UTILITY_OR_EXACT_IMPROVEMENT"},
+              metrics:{go_setup:"1.27.x",bundle_digest:$bundle_digest,go_fix_executed:0,repository_writes:0,local_tests:0,local_test_executions:0,cross_project_required_gates:0}}' > "$facts_base"
 
           evaluate() {
             local receipts=$1
@@ -268,24 +273,31 @@ jobs:
           evaluate "$WORK_DIR/core-valid-unknown.json" "$WORK_DIR/unknown-core.json" unknown-core
           evaluate "$WORK_DIR/core-malformed-unknown.json" "$WORK_DIR/refuted-malformed-unknown.json" refuted-malformed-unknown
           evaluate "$WORK_DIR/core-fixed-point.json" "$WORK_DIR/refuted-fixed-point.json" refuted-fixed-point
+          evaluate "$WORK_DIR/core-unknown-decision.json" "$WORK_DIR/refuted-unknown-decision.json" refuted-unknown-decision
 
           jq -e '.decision=="INCOMPLETE" and .claim.state=="UNKNOWN" and .claim.unknown_class=="DIRECT_MISSING" and .claim.reason=="CORE_ACTIVITY_RESOLUTION_RECEIPT_UNAVAILABLE" and ([.cells[]|select(.reason=="DEPENDENCY_BLOCKED")]|length)>0' "$WORK_DIR/unknown-missing.json" >/dev/null
           jq -e '.decision=="INCOMPLETE" and .claim.state=="UNKNOWN" and .claim.reason=="ACTIVITY_NOT_FOUND" and .claim.unknown_class=="DIRECT_MISSING"' "$WORK_DIR/unknown-core.json" >/dev/null
           jq -e '.decision=="FAIL_CLOSED" and .claim.state=="REFUTED" and .claim.reason=="MALFORMED_CORE_UNKNOWN"' "$WORK_DIR/refuted-malformed-unknown.json" >/dev/null
           jq -e '.decision=="FAIL_CLOSED" and .claim.state=="REFUTED" and .claim.reason=="UNRECOGNIZED_CORE_ACTIVITY_RESOLUTION_DECISION"' "$WORK_DIR/refuted-fixed-point.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .claim.state=="REFUTED" and .claim.reason=="UNRECOGNIZED_CORE_ACTIVITY_RESOLUTION_DECISION"' "$WORK_DIR/refuted-unknown-decision.json" >/dev/null
 
           unknown_digest_a=$(sha256sum "$WORK_DIR/unknown-missing.json" | awk '{print $1}')
           unknown_digest_b=$(sha256sum "$WORK_DIR/unknown-core.json" | awk '{print $1}')
           refuted_digest_a=$(sha256sum "$WORK_DIR/refuted-malformed-unknown.json" | awk '{print $1}')
           refuted_digest_b=$(sha256sum "$WORK_DIR/refuted-fixed-point.json" | awk '{print $1}')
+          refuted_digest_c=$(sha256sum "$WORK_DIR/refuted-unknown-decision.json" | awk '{print $1}')
           jq -e '[.claim.stage,.claim.step,.claim.reason,.claim.unknown_class,.claim.next_operation,.claim.blocked_by] | all(.[]; . != null)' "$WORK_DIR/unknown-missing.json" "$WORK_DIR/unknown-core.json" >/dev/null
           unknown_coords=6
           direct_missing=$(jq '[.cells[]|select(.unknown_class=="DIRECT_MISSING")]|length' "$WORK_DIR/unknown-missing.json")
           dependency_blocked=$(jq '[.cells[]|select(.unknown_class=="DEPENDENCY_BLOCKED")]|length' "$WORK_DIR/unknown-missing.json")
-          jq --arg a "$unknown_digest_a" --arg b "$unknown_digest_b" --arg c "$refuted_digest_a" --arg d "$refuted_digest_b" \
-            --argjson coords "$unknown_coords" --argjson direct "$direct_missing" --argjson blocked "$dependency_blocked" \
+          normal_paths=$(jq -n --slurpfile conformer "$WORK_DIR/conformance.json" --slurpfile replay "$WORK_DIR/file-replay.json" 'if $conformer[0].decision=="CONFORMANT" and $replay[0].comparisons_satisfied==$replay[0].comparisons_total and $replay[0].mismatches==0 then 1 else 0 end')
+          unknown_paths=$(jq -n --slurpfile missing "$WORK_DIR/unknown-missing.json" --slurpfile core "$WORK_DIR/unknown-core.json" '[$missing[0],$core[0]]|map(select(.decision=="INCOMPLETE" and .claim.state=="UNKNOWN"))|length')
+          refuted_paths=$(jq -n --slurpfile malformed "$WORK_DIR/refuted-malformed-unknown.json" --slurpfile fixed "$WORK_DIR/refuted-fixed-point.json" --slurpfile unknown "$WORK_DIR/refuted-unknown-decision.json" '[$malformed[0],$fixed[0],$unknown[0]]|map(select(.decision=="FAIL_CLOSED" and .claim.state=="REFUTED"))|length')
+          jq --arg a "$unknown_digest_a" --arg b "$unknown_digest_b" --arg c "$refuted_digest_a" --arg d "$refuted_digest_b" --arg e "$refuted_digest_c" \
+            --argjson coords "$unknown_coords" --argjson direct "$direct_missing" --argjson blocked "$dependency_blocked" --argjson normal "$normal_paths" --argjson unknown "$unknown_paths" --argjson refuted "$refuted_paths" \
             '.unknown_causality={reports_observed:2,report_digests:[$a,$b],coordinates_observed:$coords,direct_missing_observed:$direct,dependency_blocked_observed:$blocked} |
-             .refuted_counterexamples={reports_observed:2,report_digests:[$c,$d],malformed_unknown_state:"REFUTED",fixed_point_state:"REFUTED"}' \
+             .refuted_counterexamples={reports_observed:3,report_digests:[$c,$d,$e],malformed_unknown_state:"REFUTED",fixed_point_state:"REFUTED",unknown_top_level_state:"REFUTED"} |
+             .paths={normal:$normal,unknown:$unknown,refuted:$refuted}' \
             "$facts_base" > "$WORK_DIR/facts.json"
 
       - name: Record measured artifact inventory and authority boundary
@@ -321,8 +333,8 @@ jobs:
             '{schema:"gooo/infra-evidence/released-domain-envelope-v2-adoption-runtime/v1",subject_sha:$subject,go_setup:"1.27.x",go_version:$go_version,
               inventory:{regular_files:$regular_files,descendant_directories:$descendant_directories,root_readme_excluded:true,module_roots:$module_roots,go_fix_roots:[],go_fix_executed:0,go:{files:$go_files,physical_lines:$go_lines},gooo:{files:$gooo_files,physical_lines:$gooo_lines},per_file_source_lines:"source-lines.ndjson"},
               measurements:{core_wall_ms:$core_wall_ms,projector_wall_ms:$projector_wall_ms,conformer_wall_ms:$conformer_wall_ms,core_peak_rss_kib:$core_peak_rss_kib,projector_peak_rss_kib:$projector_peak_rss_kib,conformer_peak_rss_kib:$conformer_peak_rss_kib},
-              authority:{repository_writes:0,local_tests:0,cross_project_required_gates:0,kit_source_checkout:0,conformer_copy:0,terraform_execution_authorized:false,openapi_generation_authorized:false,provider_implementation_authorized:false,deployment_execution_authorized:false},
-              utility:{released_adoption_observed:0,released_adoption_total:1,external_utility_observed:0,external_utility_total:1,state:"UNKNOWN",reason:"NO_USER_EVIDENCE_OF_EXTERNAL_UTILITY"}}' > "$WORK_DIR/runtime.json"
+              authority:{repository_writes:0,local_tests:0,local_test_executions:0,cross_project_required_gates:0,kit_source_checkout:0,conformer_copy:0,terraform_execution_authorized:false,openapi_generation_authorized:false,provider_implementation_authorized:false,deployment_execution_authorized:false},
+              utility:{released_adoption_observed:0,released_adoption_total:1,external_utility_observed:0,external_utility_total:1,exact_before_after_improvement_observed:0,exact_before_after_improvement_total:1,state:"UNKNOWN",reason:"NO_USER_EVIDENCE_OF_EXTERNAL_UTILITY_OR_EXACT_IMPROVEMENT"}}' > "$WORK_DIR/runtime.json"
           jq --argjson metrics "$(jq '.measurements' "$WORK_DIR/runtime.json")" \
             --arg go_setup "$(jq -r '.go_setup' "$WORK_DIR/runtime.json")" \
             --argjson inventory "$(jq '.inventory' "$WORK_DIR/runtime.json")" \
@@ -331,13 +343,13 @@ jobs:
           bash scripts/evaluate-released-domain-envelope-v2.sh "$GITHUB_WORKSPACE" contracts/released-domain-envelope-v2-adoption-denominator-v1.json "$WORK_DIR/core-receipts.json" "$WORK_DIR/facts.json" \
             "$WORK_DIR/bundle-a" "$WORK_DIR/conformance.json" "$WORK_DIR/normal.json" normal
           jq -e --arg subject "$SUBJECT_SHA" --argjson cells "$(jq '.target_cells' contracts/released-domain-envelope-v2-adoption-denominator-v1.json)" \
-            '.subject_sha==$subject and .decision=="ADOPTION_CANDIDATE_CONFORMANT" and .claim.state=="CLOSED" and .summary.total==$cells and .summary.closed==$cells and .summary.unknown==0 and .summary.refuted==0 and .summary.relations_observed==8 and .summary.evidence_observed==8 and .summary.resolutions_observed==8 and .summary.envelope_files==8 and .summary.kit_checks==10 and .summary.kit_checks_total==10 and .summary.source_replay==1 and .summary.file_replay==8 and (.proofs|map(select(.closed==.total and .total==4))|length)==3 and (.indicator_classes|map(select(.closed==.total and .total==4))|length)==3' "$WORK_DIR/normal.json" >/dev/null
+            '.subject_sha==$subject and .decision=="ADOPTION_CANDIDATE_CONFORMANT" and .claim.state=="CLOSED" and .summary.total==$cells and .summary.closed==$cells and .summary.unknown==0 and .summary.refuted==0 and .summary.prior_semantic_edges==6 and .summary.prior_semantic_activities==6 and .summary.prior_dependency_kinds==4 and .summary.relations_observed==8 and .summary.evidence_observed==8 and .summary.resolutions_observed==8 and .summary.envelope_files==8 and .summary.kit_checks==10 and .summary.kit_checks_total==10 and .summary.source_replay==1 and .summary.file_replay==8 and .summary.normal_paths>=1 and .summary.unknown_paths>=2 and .summary.refuted_paths>=1 and (.cell_facts|length)==$cells and ([.cell_facts[].id]|unique|length)==$cells and ([.cell_facts[].activity]|unique|length)==$cells and all(.cell_facts[];.fact_observed==true) and .adoption.exact_before_after_improvement=={observed:0,total:1,state:"UNKNOWN",reason:"NO_PRE_RELEASE_EXACT_IMPROVEMENT_EVIDENCE"} and (.proofs|map(select(.closed==.total and .total==4))|length)==3 and (.indicator_classes|map(select(.closed==.total and .total==4))|length)==3' "$WORK_DIR/normal.json" >/dev/null
           snapshot() {
             find . -path './.git' -prune -o -type f ! -path './README.md' -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}'
           }
           snapshot > "$WORK_DIR/repository-after.sha256"
           cmp "$WORK_DIR/repository-before.sha256" "$WORK_DIR/repository-after.sha256"
-          jq -e '.authority.repository_writes==0 and .authority.local_tests==0 and .authority.cross_project_required_gates==0 and .authority.kit_source_checkout==0 and .authority.conformer_copy==0 and .utility.state=="UNKNOWN"' "$WORK_DIR/facts.json" >/dev/null
+          jq -e '.authority.repository_writes==0 and .authority.local_tests==0 and .authority.local_test_executions==0 and .authority.cross_project_required_gates==0 and .authority.kit_source_checkout==0 and .authority.conformer_copy==0 and .utility.state=="UNKNOWN" and .utility.exact_before_after_improvement_observed==0 and .utility.exact_before_after_improvement_total==1' "$WORK_DIR/facts.json" >/dev/null
 
       - name: Publish evidence artifacts and CI target summary
         uses: actions/upload-artifact@v6
@@ -355,6 +367,7 @@ jobs:
             ${{ env.WORK_DIR }}/unknown-core.json
             ${{ env.WORK_DIR }}/refuted-malformed-unknown.json
             ${{ env.WORK_DIR }}/refuted-fixed-point.json
+            ${{ env.WORK_DIR }}/refuted-unknown-decision.json
             ${{ env.WORK_DIR }}/runtime.json
             ${{ env.WORK_DIR }}/source-lines.ndjson
             ${{ env.WORK_DIR }}/infra/deployment-plan.json
@@ -370,11 +383,12 @@ jobs:
           - subject/check-out: $SUBJECT_SHA / $SUBJECT_SHA
           - product projection: 1/1; envelope files: 8/8
           - relations/evidence/resolutions: 8/8/8
+          - v0.8 plan: activities 6, dependencies 8, dependency kinds 4, semantic edges 6, OpenAPI 1, Terraform 1, deployment chain 4
           - kit conformer: 10/10; source replay: 1/1; file replay: 8/8
-          - normal/UNKNOWN/REFUTED paths: 1/2/2 (minimum 1/2/1)
+          - normal/UNKNOWN/REFUTED paths: observed from reports; minimum 1/2/1
           - UNKNOWN coordinates: 6; meta cells: 12/12; proof: 4/4/4; indicator: 4/4/4
-          - released adoption: 0/1 UNKNOWN; external utility: 0/1 UNKNOWN
-          - repository writes/local tests/cross-project gates: 0/0/0
+          - released adoption: 0/1 UNKNOWN; external utility: 0/1 UNKNOWN; exact improvement: 0/1 UNKNOWN
+          - repository writes/local test executions/cross-project gates: 0/0/0
           - kit source checkout/conformer copy: 0/0
           - Go setup: 1.27.x; root README: excluded; go fix roots: []
           - merge/release: not performed

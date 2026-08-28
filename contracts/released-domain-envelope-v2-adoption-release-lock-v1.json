@@ -36,6 +36,7 @@
     "cross_project_required_gates": 0,
     "repository_writes": 0,
     "local_tests": 0,
+    "local_test_executions": 0,
     "terraform_execution_authorized": false,
     "terraform_apply_authorized": false,
     "provider_implementation_authorized": false,
