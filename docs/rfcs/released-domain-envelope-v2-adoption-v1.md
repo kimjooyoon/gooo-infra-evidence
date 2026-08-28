@@ -29,12 +29,14 @@ projector receives an explicit absolute repository root and rejects an output
 directory that is the root or a descendant. Its output is written only to a
 caller-owned temporary directory.
 
-The product owns the projection and the claim-resolution report. Its project
-authority is exactly:
+Infra owns the projected source evidence and the claim-resolution report. The
+immutable consumer kit owns the project-envelope schema, so the emitted
+`projection_owner` is the kit's required value rather than a relabeling of the
+Infra evidence domain. The authority is exactly:
 
 ```json
 {
-  "projection_owner": "INFRA_EVIDENCE",
+  "projection_owner": "INTERCHANGE_SPECIFICATION",
   "domain_release_adoption_claimed": false,
   "source_repository_writes": 0,
   "product_generation_authorized": false
