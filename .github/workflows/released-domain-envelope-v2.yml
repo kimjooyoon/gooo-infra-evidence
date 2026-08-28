@@ -32,6 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          trap 'status=$?; echo "CI failure in Acquire pinned released inputs: ${BASH_COMMAND} (status ${status})" >&2; exit "$status"' ERR
           rm -rf "$WORK_DIR" "$ARTIFACT_DIR"
           mkdir -p "$WORK_DIR/core/bin" "$WORK_DIR/kit" "$WORK_DIR/infra" "$WORK_DIR/reports" "$ARTIFACT_DIR"
           snapshot() {
