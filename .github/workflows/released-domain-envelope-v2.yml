@@ -162,6 +162,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          trap 'status=$?; echo "CI failure in Project, replay, and conform: ${BASH_COMMAND} (status ${status})" >&2; if test -s "$WORK_DIR/conformance.json"; then cat "$WORK_DIR/conformance.json" >&2; fi; exit "$status"' ERR
           root="$GITHUB_WORKSPACE"
           denominator=contracts/released-domain-envelope-v2-adoption-denominator-v1.json
           lock=contracts/released-domain-envelope-v2-adoption-release-lock-v1.json
