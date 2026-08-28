@@ -253,7 +253,7 @@ jobs:
             jq -r '"- ambiguous handler: CLOSED \(.summary.closed), REFUTED \(.summary.refuted), \(.claim.reason)"' "$RUNNER_TEMP/ambiguous-handler.json"
             jq -r '"- core identity mismatch: CLOSED \(.summary.closed), REFUTED \(.summary.refuted), \(.claim.reason)"' "$RUNNER_TEMP/identity-mismatch.json"
             jq -r '"- deployment drift: CLOSED \(.summary.closed), REFUTED \(.summary.refuted), \(.claim.reason)"' "$RUNNER_TEMP/deployment-drift.json"
-            jq -r '"- missing HCL: CLOSED \(.summary.closed), UNKNOWN \(.summary.unknown), \(.claim.reason)","- context-missing HCL: CLOSED \(input.summary.closed), UNKNOWN \(input.summary.unknown), \(input.claim.reason)","- invalid HCL: CLOSED \(input.summary.closed), REFUTED \(input.summary.refuted), \(input.claim.reason)","- mismatched HCL: CLOSED \(input.summary.closed), REFUTED \(input.summary.refuted), \(input.claim.reason)"' "$RUNNER_TEMP/missing-hcl.json" "$RUNNER_TEMP/context-hcl.json" "$RUNNER_TEMP/invalid-hcl.json" "$RUNNER_TEMP/mismatched-hcl.json"
+          jq -sr '"- missing HCL: CLOSED \(.[0].summary.closed), UNKNOWN \(.[0].summary.unknown), \(.[0].claim.reason)","- context-missing HCL: CLOSED \(.[1].summary.closed), UNKNOWN \(.[1].summary.unknown), \(.[1].claim.reason)","- invalid HCL: CLOSED \(.[2].summary.closed), REFUTED \(.[2].summary.refuted), \(.[2].claim.reason)","- mismatched HCL: CLOSED \(.[3].summary.closed), REFUTED \(.[3].summary.refuted), \(.[3].claim.reason)"' "$RUNNER_TEMP/missing-hcl.json" "$RUNNER_TEMP/context-hcl.json" "$RUNNER_TEMP/invalid-hcl.json" "$RUNNER_TEMP/mismatched-hcl.json"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Enforce zero repository writes
         run: test -z "$(git status --porcelain=v1 --untracked-files=all)"
