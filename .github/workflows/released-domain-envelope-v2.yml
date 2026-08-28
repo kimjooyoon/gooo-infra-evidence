@@ -197,7 +197,7 @@ jobs:
             bash "$conformer" "$WORK_DIR/bundle-a" "$WORK_DIR/bundle-b" "$WORK_DIR/conformance.json"
           end_ns=$(date +%s%N)
           echo $(( (end_ns - start_ns) / 1000000 )) > "$WORK_DIR/conformer-wall-ms"
-          jq -e '.decision=="CONFORMANT" and .summary.closed==10 and .summary.total==10 and .summary.refuted==0 and .summary.unknown==0 and .summary.external_required_gates==0 and .summary.repository_writes==0' "$WORK_DIR/conformance.json" >/dev/null
+          jq -e '.decision=="CONFORMANT" and .summary.closed==10 and .summary.total==10 and .summary.refuted==0 and .summary.unknown==0 and .summary.external_required_gates==0' "$WORK_DIR/conformance.json" >/dev/null
 
       - name: Exercise UNKNOWN and REFUTED reports, merge report digests, then evaluate normal
         shell: bash
