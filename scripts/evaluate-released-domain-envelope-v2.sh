@@ -94,7 +94,7 @@ jq -S -n \
       $f.conformer.decision=="CONFORMANT" and
       $f.conformer.closed==$d.expected.local_checks and $f.conformer.total==$d.expected.local_checks
     elif $id=="UNKNOWN_CAUSALITY" then
-      if $f.unknown_causality==null then ($phase|startswith("unknown") or $phase|startswith("refuted"))
+      if $f.unknown_causality==null then (($phase|tostring|startswith("unknown")) or ($phase|tostring|startswith("refuted")))
       else $f.unknown_causality.reports_observed >= $d.expected.unknown_paths_min and
         $f.unknown_causality.coordinates_observed==$d.expected.unknown_coordinates and
         $f.unknown_causality.direct_missing_observed>=1 and
@@ -104,7 +104,7 @@ jq -S -n \
       $f.replay.source_satisfied==$d.expected.source_replay and
       $f.replay.file_satisfied==$d.expected.file_replay
     elif $id=="REFUTED_COUNTEREXAMPLES" then
-      if $f.refuted_counterexamples==null then ($phase|startswith("unknown") or $phase|startswith("refuted"))
+      if $f.refuted_counterexamples==null then (($phase|tostring|startswith("unknown")) or ($phase|tostring|startswith("refuted")))
       else $f.refuted_counterexamples.reports_observed >= $d.expected.refuted_paths_min and
         $f.refuted_counterexamples.malformed_unknown_state=="REFUTED" and
         $f.refuted_counterexamples.fixed_point_state=="REFUTED"
