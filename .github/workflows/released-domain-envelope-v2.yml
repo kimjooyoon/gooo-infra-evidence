@@ -323,7 +323,10 @@ jobs:
               measurements:{core_wall_ms:$core_wall_ms,projector_wall_ms:$projector_wall_ms,conformer_wall_ms:$conformer_wall_ms,core_peak_rss_kib:$core_peak_rss_kib,projector_peak_rss_kib:$projector_peak_rss_kib,conformer_peak_rss_kib:$conformer_peak_rss_kib},
               authority:{repository_writes:0,local_tests:0,cross_project_required_gates:0,kit_source_checkout:0,conformer_copy:0,terraform_execution_authorized:false,openapi_generation_authorized:false,provider_implementation_authorized:false,deployment_execution_authorized:false},
               utility:{released_adoption_observed:0,released_adoption_total:1,external_utility_observed:0,external_utility_total:1,state:"UNKNOWN",reason:"NO_USER_EVIDENCE_OF_EXTERNAL_UTILITY"}}' > "$WORK_DIR/runtime.json"
-          jq --argjson metrics "$(jq '.measurements' "$WORK_DIR/runtime.json")" '.metrics=$metrics | .metrics.go_setup=.go_setup | .metrics.inventory=.inventory' "$WORK_DIR/facts.json" > "$WORK_DIR/facts-with-runtime.json"
+          jq --argjson metrics "$(jq '.measurements' "$WORK_DIR/runtime.json")" \
+            --arg go_setup "$(jq -r '.go_setup' "$WORK_DIR/runtime.json")" \
+            --argjson inventory "$(jq '.inventory' "$WORK_DIR/runtime.json")" \
+            '.metrics=$metrics | .metrics.go_setup=$go_setup | .metrics.inventory=$inventory' "$WORK_DIR/facts.json" > "$WORK_DIR/facts-with-runtime.json"
           mv "$WORK_DIR/facts-with-runtime.json" "$WORK_DIR/facts.json"
           bash scripts/evaluate-released-domain-envelope-v2.sh "$GITHUB_WORKSPACE" contracts/released-domain-envelope-v2-adoption-denominator-v1.json "$WORK_DIR/core-receipts.json" "$WORK_DIR/facts.json" \
             "$WORK_DIR/bundle-a" "$WORK_DIR/conformance.json" "$WORK_DIR/normal.json" normal
