@@ -1,0 +1,29 @@
+{
+  "schema": "gooo/evidence-generator/denominator/v1",
+  "id": "gooo://denominator/infra-claim-resolution-adoption/v1",
+  "target_cells": 12,
+  "proof_totals": [
+    {"proof_choice": "FOUNDATION", "total": 4},
+    {"proof_choice": "COHERENCE", "total": 4},
+    {"proof_choice": "REGRESSION", "total": 4}
+  ],
+  "indicator_totals": [
+    {"indicator_class": "DRIVER", "total": 4},
+    {"indicator_class": "OUTCOME", "total": 4},
+    {"indicator_class": "GUARDRAIL", "total": 4}
+  ],
+  "cells": [
+    {"ordinal": 1, "id": "INFRA_RELEASE", "activity": "ObserveReleasedInfraEvidence", "stage": "RELEASE", "step": "OBSERVE_INFRA_RELEASE", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "closed_reason": "INFRA_EVIDENCE_V0_5_RELEASE_OBSERVED", "unknown_reason": "INFRA_EVIDENCE_RELEASE_UNAVAILABLE", "refuted_reason": "INFRA_EVIDENCE_RELEASE_IDENTITY_MISMATCH", "next_operation": "FETCH_PINNED_INFRA_EVIDENCE_RELEASE"},
+    {"ordinal": 2, "id": "CLAIM_PRIMITIVE_RELEASE", "activity": "ObserveReleasedClaimPrimitive", "stage": "CORE_RELEASE", "step": "OBSERVE_CLAIM_RESOLUTION_PRIMITIVE", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "closed_reason": "CLAIM_RESOLUTION_V0_3_RELEASE_OBSERVED", "unknown_reason": "CLAIM_RESOLUTION_RELEASE_UNAVAILABLE", "refuted_reason": "CLAIM_RESOLUTION_RELEASE_IDENTITY_MISMATCH", "next_operation": "FETCH_PINNED_CLAIM_RESOLUTION_RELEASE"},
+    {"ordinal": 3, "id": "RELEASED_CLOSED_CLAIM", "activity": "BindReleasedClosedClaim", "stage": "INFRA_CLAIM", "step": "BIND_RELEASED_CLOSED_CLAIM", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "closed_reason": "RELEASED_INFRA_CLOSED_CLAIM_BOUND", "unknown_reason": "RELEASED_INFRA_CLOSED_CLAIM_UNAVAILABLE", "refuted_reason": "RELEASED_INFRA_CLOSED_CLAIM_MISMATCH", "next_operation": "RESTORE_RELEASED_INFRA_CLOSED_CLAIM"},
+    {"ordinal": 4, "id": "RESOLVED_CLOSED_CLAIM", "activity": "ResolveReleasedClosedClaim", "stage": "RESOLUTION", "step": "RESOLVE_RELEASED_CLOSED_CLAIM", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "closed_reason": "RELEASED_INFRA_CLOSED_CLAIM_RESOLVED", "unknown_reason": "CLOSED_CLAIM_RESOLUTION_UNAVAILABLE", "refuted_reason": "CLOSED_CLAIM_RESOLUTION_MISMATCH", "next_operation": "RESTORE_CLOSED_CLAIM_VALUE_PROGRAM"},
+    {"ordinal": 5, "id": "RELEASED_UNKNOWN_CLAIM", "activity": "BindReleasedUnknownClaim", "stage": "INFRA_CLAIM", "step": "BIND_RELEASED_UNKNOWN_CLAIM", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "closed_reason": "RELEASED_INFRA_UNKNOWN_CLAIM_BOUND", "unknown_reason": "RELEASED_INFRA_UNKNOWN_CLAIM_UNAVAILABLE", "refuted_reason": "RELEASED_INFRA_UNKNOWN_CLAIM_MISMATCH", "next_operation": "RESTORE_RELEASED_INFRA_UNKNOWN_CLAIM"},
+    {"ordinal": 6, "id": "PRESERVED_UNKNOWN_CLAIM", "activity": "PreserveReleasedUnknownClaim", "stage": "RESOLUTION", "step": "PRESERVE_RELEASED_UNKNOWN_CLAIM", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "closed_reason": "RELEASED_INFRA_UNKNOWN_CLAIM_PRESERVED", "unknown_reason": "UNKNOWN_CLAIM_RESOLUTION_UNAVAILABLE", "refuted_reason": "UNKNOWN_CLAIM_RESOLUTION_MISMATCH", "next_operation": "RESTORE_UNKNOWN_CLAIM_VALUE_PROGRAM"},
+    {"ordinal": 7, "id": "RELEASED_REFUTED_CLAIM", "activity": "BindReleasedRefutedClaim", "stage": "INFRA_CLAIM", "step": "BIND_RELEASED_REFUTED_CLAIM", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "closed_reason": "RELEASED_INFRA_REFUTED_CLAIM_BOUND", "unknown_reason": "RELEASED_INFRA_REFUTED_CLAIM_UNAVAILABLE", "refuted_reason": "RELEASED_INFRA_REFUTED_CLAIM_MISMATCH", "next_operation": "RESTORE_RELEASED_INFRA_REFUTED_CLAIM"},
+    {"ordinal": 8, "id": "PRESERVED_REFUTED_CLAIM", "activity": "PreserveReleasedRefutedClaim", "stage": "RESOLUTION", "step": "PRESERVE_RELEASED_REFUTED_CLAIM", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "closed_reason": "RELEASED_INFRA_REFUTED_CLAIM_PRESERVED", "unknown_reason": "REFUTED_CLAIM_RESOLUTION_UNAVAILABLE", "refuted_reason": "REFUTED_CLAIM_RESOLUTION_MISMATCH", "next_operation": "RESTORE_REFUTED_CLAIM_VALUE_PROGRAM"},
+    {"ordinal": 9, "id": "INCOMPLETE_UNKNOWN_GUARD", "activity": "RejectIncompleteUnknownTuple", "stage": "VALIDATION", "step": "REJECT_INCOMPLETE_UNKNOWN_TUPLE", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "closed_reason": "INCOMPLETE_UNKNOWN_TUPLE_REJECTED", "unknown_reason": "INCOMPLETE_UNKNOWN_GUARD_RECEIPT_UNAVAILABLE", "refuted_reason": "INCOMPLETE_UNKNOWN_TUPLE_ACCEPTED", "next_operation": "RESTORE_UNKNOWN_TUPLE_COMPLETENESS_GUARD"},
+    {"ordinal": 10, "id": "UNKNOWN_PARENT_DECISION_GUARD", "activity": "RejectUnknownParentDecision", "stage": "VALIDATION", "step": "REJECT_UNKNOWN_PARENT_DECISION", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "closed_reason": "UNKNOWN_PARENT_DECISION_FAILED_CLOSED", "unknown_reason": "UNKNOWN_PARENT_DECISION_GUARD_RECEIPT_UNAVAILABLE", "refuted_reason": "UNKNOWN_PARENT_DECISION_ACCEPTED", "next_operation": "RESTORE_EXPLICIT_CLAIM_STATE_ALLOWLIST"},
+    {"ordinal": 11, "id": "DETERMINISTIC_REPLAY", "activity": "ReplayClaimResolution", "stage": "REPLAY", "step": "REPLAY_CLAIM_RESOLUTION", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "closed_reason": "CLAIM_RESOLUTION_REPLAY_IDENTICAL", "unknown_reason": "CLAIM_RESOLUTION_REPLAY_UNAVAILABLE", "refuted_reason": "CLAIM_RESOLUTION_REPLAY_MISMATCH", "next_operation": "RESTORE_DETERMINISTIC_CLAIM_RESOLUTION"},
+    {"ordinal": 12, "id": "READ_ONLY_EFFECT", "activity": "ObserveReadOnlyEffect", "stage": "EFFECT", "step": "OBSERVE_READ_ONLY_EFFECT", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "closed_reason": "READ_ONLY_ADOPTION_BOUNDARY_OBSERVED", "unknown_reason": "REPOSITORY_EFFECT_OBSERVATION_UNAVAILABLE", "refuted_reason": "ADOPTION_AUTHORITY_BOUNDARY_VIOLATED", "next_operation": "RESTORE_READ_ONLY_ADOPTION_BOUNDARY"}
+  ]
+}
