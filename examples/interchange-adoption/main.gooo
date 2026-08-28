@@ -1,0 +1,29 @@
+package interchangeadoption
+namespace infraevidenceinterchange
+
+entity ReleasedGoooIdentity id "checkout://interchange/entity/released-gooo-identity"
+entity InterchangeReleaseIdentity id "checkout://interchange/entity/interchange-release-identity"
+entity InfraEvidenceAuthority id "checkout://interchange/entity/infra-evidence-authority"
+entity AdoptionState id "checkout://interchange/entity/adoption-state"
+entity FiveFileEnvelope id "checkout://interchange/entity/five-file-envelope"
+entity AdvisoryBundle id "checkout://interchange/entity/advisory-bundle"
+entity LocalConformance id "checkout://interchange/entity/local-conformance"
+entity RelationMatch id "checkout://interchange/entity/relation-match"
+entity ReplayObservation id "checkout://interchange/entity/replay-observation"
+entity UnknownTupleGuard id "checkout://interchange/entity/unknown-tuple-guard"
+entity ChecksumDriftGuard id "checkout://interchange/entity/checksum-drift-guard"
+entity IndependentReadOnlyEffect id "checkout://interchange/entity/independent-read-only-effect"
+entity AdoptionDecision id "checkout://interchange/entity/adoption-decision"
+
+activity ObserveReleasedGoooIdentity(ReleasedGoooIdentity) -> AdoptionDecision
+activity ObserveInterchangeReleaseIdentity(InterchangeReleaseIdentity) -> AdoptionDecision
+activity DeclareInfraEvidenceAuthority(InfraEvidenceAuthority) -> AdoptionDecision
+activity ObserveAdoptionState(AdoptionState) -> AdoptionDecision
+activity DefineFiveFileEnvelope(FiveFileEnvelope) -> AdoptionDecision
+activity GenerateAdvisoryBundle(AdvisoryBundle) -> AdoptionDecision
+activity ConformSixLocalChecks(LocalConformance) -> AdoptionDecision
+activity ObserveRelationMatch(RelationMatch) -> AdoptionDecision
+activity ObserveDeterministicReplay(ReplayObservation) -> AdoptionDecision
+activity PreserveUnknownTuple(UnknownTupleGuard) -> AdoptionDecision
+activity RejectChecksumDrift(ChecksumDriftGuard) -> AdoptionDecision
+activity PreserveIndependentReadOnlyEffect(IndependentReadOnlyEffect) -> AdoptionDecision

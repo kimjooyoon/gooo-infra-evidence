@@ -1,0 +1,33 @@
+{
+  "schema": "gooo/infra-evidence/interchange-adoption-release-lock/v1",
+  "core": {
+    "repository": "kimjooyoon/meta-ontology-go",
+    "tag": "v0.2.0-dev",
+    "tag_object_sha": "733f7b22a365606d42bf238f5c535ff12e5abf8c",
+    "target_commit_sha": "050b11e56d9f972e0d507d406e5da8a60595052b",
+    "asset": {
+      "name": "gooo-linux-amd64.tar.gz",
+      "sha256": "99599bdd3c2ae947718881dd78b899234452ab06bd8e60a550320054e1d81ddd"
+    },
+    "resolution_schema": "gooo/activity-cardinality-resolution/v1"
+  },
+  "interchange": {
+    "repository": "kimjooyoon/gooo-interchange-spec",
+    "tag": "v0.1.0-dev",
+    "tag_object_sha": "46db1c6953bf1e4d4291b10759d7f74a6c8e4c8a",
+    "target_commit_sha": "23a6c904fcacc3bb444bb473efeb04f33c607564",
+    "report_asset": {
+      "name": "specification-report.json",
+      "sha256": "09f14c7364ee783a045305c6e3dea4b742d4366f831b1e0212c204d33fb401ca"
+    },
+    "report_schema": "gooo/interchange/specification-report/v1"
+  },
+  "adoption_contract": {
+    "required_files_per_bundle": 5,
+    "required_local_checks_per_bundle": 6,
+    "relation_states": ["MATCH", "MISMATCH", "UNKNOWN"],
+    "unknown_fields": ["stage", "step", "reason", "unknown_class", "next_operation"],
+    "cross_project_required_gates": 0,
+    "root_readme_readiness": "EXCLUDED"
+  }
+}

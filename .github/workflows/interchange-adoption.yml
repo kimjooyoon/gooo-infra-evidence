@@ -1,0 +1,145 @@
+name: Interchange advisory adoption
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  adoption:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Bind subject and public adoption state
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SUBJECT_SHA=${{ github.event.pull_request.head.sha || github.sha }}" >> "$GITHUB_ENV"
+          if test "${{ github.event_name }}" = push && test "${{ github.ref }}" = refs/heads/main; then
+            echo "ADOPTION_STATE=MAIN_MERGED" >> "$GITHUB_ENV"
+          else
+            echo "ADOPTION_STATE=PR_CANDIDATE" >> "$GITHUB_ENV"
+          fi
+
+      - name: Acquire immutable released inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          lock=contracts/interchange-adoption-release-lock-v1.json
+          core_repo=$(jq -r '.core.repository' "$lock"); core_tag=$(jq -r '.core.tag' "$lock"); core_tag_object=$(jq -r '.core.tag_object_sha' "$lock"); core_target=$(jq -r '.core.target_commit_sha' "$lock"); core_asset=$(jq -r '.core.asset.name' "$lock"); core_sha=$(jq -r '.core.asset.sha256' "$lock")
+          gh api "repos/$core_repo/git/ref/tags/$core_tag" > "$RUNNER_TEMP/core-ref.json"
+          jq -e --arg sha "$core_tag_object" '.object.type=="tag" and .object.sha==$sha' "$RUNNER_TEMP/core-ref.json" >/dev/null
+          gh api "repos/$core_repo/git/tags/$core_tag_object" > "$RUNNER_TEMP/core-tag.json"
+          jq -e --arg sha "$core_target" '.object.type=="commit" and .object.sha==$sha' "$RUNNER_TEMP/core-tag.json" >/dev/null
+          gh api "repos/$core_repo/releases/tags/$core_tag" > "$RUNNER_TEMP/core-release.json"
+          core_id=$(jq -r --arg name "$core_asset" '.assets[]|select(.name==$name)|.id' "$RUNNER_TEMP/core-release.json")
+          gh api -H 'Accept: application/octet-stream' "repos/$core_repo/releases/assets/$core_id" > "$RUNNER_TEMP/$core_asset"
+          printf '%s  %s\n' "$core_sha" "$RUNNER_TEMP/$core_asset" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/core"; tar -xzf "$RUNNER_TEMP/$core_asset" -C "$RUNNER_TEMP/core"; chmod +x "$RUNNER_TEMP/core/gooo"
+
+          spec_repo=$(jq -r '.interchange.repository' "$lock"); spec_tag=$(jq -r '.interchange.tag' "$lock"); spec_tag_object=$(jq -r '.interchange.tag_object_sha' "$lock"); spec_target=$(jq -r '.interchange.target_commit_sha' "$lock"); spec_asset=$(jq -r '.interchange.report_asset.name' "$lock"); spec_sha=$(jq -r '.interchange.report_asset.sha256' "$lock")
+          gh api "repos/$spec_repo/git/ref/tags/$spec_tag" > "$RUNNER_TEMP/spec-ref.json"
+          jq -e --arg sha "$spec_tag_object" '.object.type=="tag" and .object.sha==$sha' "$RUNNER_TEMP/spec-ref.json" >/dev/null
+          gh api "repos/$spec_repo/git/tags/$spec_tag_object" > "$RUNNER_TEMP/spec-tag.json"
+          jq -e --arg sha "$spec_target" '.object.type=="commit" and .object.sha==$sha' "$RUNNER_TEMP/spec-tag.json" >/dev/null
+          gh api "repos/$spec_repo/releases/tags/$spec_tag" > "$RUNNER_TEMP/spec-release.json"
+          spec_id=$(jq -r --arg name "$spec_asset" '.assets[]|select(.name==$name)|.id' "$RUNNER_TEMP/spec-release.json")
+          gh api -H 'Accept: application/octet-stream' "repos/$spec_repo/releases/assets/$spec_id" > "$RUNNER_TEMP/specification-report.json"
+          printf '%s  %s\n' "$spec_sha" "$RUNNER_TEMP/specification-report.json" | sha256sum -c -
+          jq -e '.schema=="gooo/interchange/specification-report/v1" and .decision=="SPECIFICATION_CONFORMANT" and .summary.closed==12 and .summary.total==12 and .summary.local_checks_closed==54 and .summary.local_checks_total==54 and .adoption.released_domain_adoption=={observed:0,total:3} and .adoption.connector_implementation=="NOT_STARTED"' "$RUNNER_TEMP/specification-report.json" >/dev/null
+          jq -S -n --arg core_tag "$core_tag" --arg core_tag_object "$core_tag_object" --arg core_target "$core_target" --arg core_sha "$core_sha" --arg spec_tag "$spec_tag" --arg spec_tag_object "$spec_tag_object" --arg spec_target "$spec_target" --arg spec_sha "$spec_sha" '{schema:"gooo/infra-evidence/immutable-interchange-inputs/v1",core:{tag:$core_tag,tag_object_sha:$core_tag_object,target_commit_sha:$core_target,asset_sha256:$core_sha,identity_verified:true},specification:{tag:$spec_tag,tag_object_sha:$spec_tag_object,target_commit_sha:$spec_target,asset_sha256:$spec_sha,identity_verified:true}}' > "$RUNNER_TEMP/immutable-inputs.json"
+
+      - name: Resolve twelve Gooo adoption activities
+        shell: bash
+        run: |
+          set -euo pipefail
+          gooo="$RUNNER_TEMP/core/gooo"; source=examples/interchange-adoption/main.gooo; denominator=contracts/interchange-adoption-denominator-v1.json
+          "$gooo" check --json "$source" > "$RUNNER_TEMP/interchange-syntax.json"
+          "$gooo" check --semantic --json "$source" > "$RUNNER_TEMP/interchange-semantic.json"
+          "$gooo" graph dump "$source" > "$RUNNER_TEMP/interchange-graph.json"
+          jq -e '.status=="ok"' "$RUNNER_TEMP/interchange-syntax.json" "$RUNNER_TEMP/interchange-semantic.json" >/dev/null
+          jq -e '([.nodes[]|select(.kind=="Activity")]|length)==12' "$RUNNER_TEMP/interchange-graph.json" >/dev/null
+          mkdir -p "$RUNNER_TEMP/core-resolutions"
+          while IFS=$'\t' read -r ordinal activity; do
+            printf -v receipt '%s/core-resolutions/%02d-%s.json' "$RUNNER_TEMP" "$ordinal" "$activity"
+            "$gooo" graph resolve-activity "$source" --name "$activity" > "$receipt"
+            jq -e --arg activity "$activity" '.schema=="gooo/activity-cardinality-resolution/v1" and .selector.name==$activity and .decision=="CLOSED" and .occurrences==1 and .claim.state=="CLOSED" and .claim.reason=="ACTIVITY_UNIQUELY_RESOLVED"' "$receipt" >/dev/null
+          done < <(jq -r '.cells[]|[.ordinal,.activity]|@tsv' "$denominator")
+          jq -S -s '.' "$RUNNER_TEMP"/core-resolutions/*.json > "$RUNNER_TEMP/core-receipts.json"
+
+      - name: Generate, replay, challenge, and evaluate adoption
+        shell: bash
+        run: |
+          set -euo pipefail
+          snapshot() { find "$GITHUB_WORKSPACE" -path "$GITHUB_WORKSPACE/.git" -prune -o -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}'; }
+          before=$(snapshot); exporter=scripts/export-interchange.sh; conformer=scripts/conform-interchange.sh; profile=fixtures/interchange-adoption-v1.json
+          start_ns=$(date +%s%N)
+          /usr/bin/time -f '%M' -o "$RUNNER_TEMP/exporter-rss" bash "$exporter" "$GITHUB_WORKSPACE" "$SUBJECT_SHA" "$RUNNER_TEMP/specification-report.json" "$profile" "$RUNNER_TEMP/bundle-a"
+          end_ns=$(date +%s%N); echo $(( (end_ns-start_ns)/1000000 )) > "$RUNNER_TEMP/exporter-wall-ms"
+          bash "$exporter" "$GITHUB_WORKSPACE" "$SUBJECT_SHA" "$RUNNER_TEMP/specification-report.json" "$profile" "$RUNNER_TEMP/bundle-b"
+          bash "$conformer" "$RUNNER_TEMP/bundle-a" "$RUNNER_TEMP/bundle-b" "$RUNNER_TEMP/conformance.json"
+          jq -e '.decision=="CONFORMANT" and .summary=={closed:6,external_required_gates:0,refuted:0,required_files:5,total:6,unknown:0}' "$RUNNER_TEMP/conformance.json" >/dev/null
+
+          cp -R "$RUNNER_TEMP/bundle-a" "$RUNNER_TEMP/bad-checksum-a"; cp -R "$RUNNER_TEMP/bundle-a" "$RUNNER_TEMP/bad-checksum-b"
+          printf '\n' >> "$RUNNER_TEMP/bad-checksum-a/project.json"; printf '\n' >> "$RUNNER_TEMP/bad-checksum-b/project.json"
+          bash "$conformer" "$RUNNER_TEMP/bad-checksum-a" "$RUNNER_TEMP/bad-checksum-b" "$RUNNER_TEMP/checksum-mismatch.json"
+          jq -e '.decision=="FAIL_CLOSED" and .summary.closed==5 and .summary.refuted==1 and .claim.reason=="SHA256_CHECKSUM_MISMATCH"' "$RUNNER_TEMP/checksum-mismatch.json" >/dev/null
+
+          cp -R "$RUNNER_TEMP/bundle-a" "$RUNNER_TEMP/bad-unknown-a"; cp -R "$RUNNER_TEMP/bundle-a" "$RUNNER_TEMP/bad-unknown-b"
+          for bundle in "$RUNNER_TEMP/bad-unknown-a" "$RUNNER_TEMP/bad-unknown-b"; do
+            jq '.unknown_count=1' "$bundle/project.json" > "$bundle/project.next"; mv "$bundle/project.next" "$bundle/project.json"
+            jq -c '.state="UNKNOWN"|.evidence.observed_sha256=null|.reason="SPECIFICATION_EVIDENCE_UNAVAILABLE"|.unknown_class="EVIDENCE_MISSING"|.next_operation=null' "$bundle/relations.ndjson" > "$bundle/relations.next"; mv "$bundle/relations.next" "$bundle/relations.ndjson"
+            cp "$bundle/relations.ndjson" "$bundle/unknowns.ndjson"
+            (cd "$bundle" && sha256sum project.json relations.ndjson unknowns.ndjson conformance.json > checksums.txt)
+          done
+          bash "$conformer" "$RUNNER_TEMP/bad-unknown-a" "$RUNNER_TEMP/bad-unknown-b" "$RUNNER_TEMP/invalid-unknown.json"
+          jq -e '.decision=="FAIL_CLOSED" and .summary.closed==5 and .summary.refuted==1 and .claim.reason=="UNKNOWN_TUPLE_INCOMPLETE"' "$RUNNER_TEMP/invalid-unknown.json" >/dev/null
+
+          after=$(snapshot); if test "$before" = "$after"; then writes=0; else writes=1; fi
+          jq -S -n --arg subject_sha "$SUBJECT_SHA" --arg before "$before" --arg after "$after" --argjson writes "$writes" --argjson peak_rss_kib "$(cat "$RUNNER_TEMP/exporter-rss")" --argjson wall_ms "$(cat "$RUNNER_TEMP/exporter-wall-ms")" '{schema:"gooo/infra-evidence/interchange-runtime/v1",subject_sha:$subject_sha,exporter:{peak_rss_kib:$peak_rss_kib,wall_ms:$wall_ms},repository:{before_digest:$before,after_digest:$after,writes:$writes},deterministic_replay:true,local_tests_run:0}' > "$RUNNER_TEMP/runtime.json"
+
+          jq -S -n --arg adoption_state "$ADOPTION_STATE" --slurpfile immutable "$RUNNER_TEMP/immutable-inputs.json" --slurpfile specification "$RUNNER_TEMP/specification-report.json" --slurpfile conformance "$RUNNER_TEMP/conformance.json" --slurpfile project "$RUNNER_TEMP/bundle-a/project.json" --slurpfile relation "$RUNNER_TEMP/bundle-a/relations.ndjson" --slurpfile invalid_unknown "$RUNNER_TEMP/invalid-unknown.json" --slurpfile checksum "$RUNNER_TEMP/checksum-mismatch.json" --slurpfile runtime "$RUNNER_TEMP/runtime.json" '
+            {schema:"gooo/infra-evidence/interchange-adoption-facts/v1",adoption_state:$adoption_state,core_release_verified:$immutable[0].core.identity_verified,
+             specification:{identity_verified:($immutable[0].specification.identity_verified and $specification[0].decision=="SPECIFICATION_CONFORMANT")},domain:{authority:(if $project[0].domain=="infra-evidence" then "INFRA_EVIDENCE" else "UNRECOGNIZED" end)},
+             contract:{required_files:$specification[0].contract.required_files_per_bundle,required_local_checks:$specification[0].contract.required_local_checks_per_bundle,relation_states:$specification[0].contract.relation_states,unknown_fields:$specification[0].contract.unknown_fields,external_required_gates:$conformance[0].summary.external_required_gates},
+             bundle:{generated_files:5,decision:$conformance[0].decision,closed:$conformance[0].summary.closed,total:$conformance[0].summary.total,relation_state:$relation[0].state,replay_closed:(([$conformance[0].checks[]|select(.id=="DETERMINISTIC_REPLAY" and .state=="CLOSED")]|length)==1)},
+             adversarial:{unknown_tuple:{decision:$invalid_unknown[0].decision,refuted:$invalid_unknown[0].summary.refuted,reason:$invalid_unknown[0].claim.reason},checksum_drift:{decision:$checksum[0].decision,refuted:$checksum[0].summary.refuted,reason:$checksum[0].claim.reason}},runtime:$runtime[0]}' > "$RUNNER_TEMP/facts.json"
+
+          bash scripts/evaluate-interchange-adoption.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/core-receipts.json" "$RUNNER_TEMP/facts.json" "$RUNNER_TEMP/adoption-report.json" "$SUBJECT_SHA"
+          expected_adoption=0; test "$ADOPTION_STATE" = MAIN_MERGED && expected_adoption=1 || true
+          jq -e --argjson adoption "$expected_adoption" '.decision=="ADOPTION_CONFORMANT" and .summary.closed==12 and .summary.total==12 and .summary.unknown==0 and .summary.refuted==0 and .adoption.released_domain_adoption=={scope:"THIS_RELEASE",observed:$adoption,total:1} and .adoption.portfolio_adoption.state=="UNKNOWN" and .adoption.portfolio_adoption.unknown_class=="SCOPE_DEFERRED" and .adoption.connector_implementation=="NOT_STARTED" and .authority=={cross_project_required_gates:0,current_external_branches:0,root_readme_readiness:"EXCLUDED"} and .runtime.repository.writes==0 and .runtime.local_tests_run==0 and ([.proofs[]|select(.closed==4 and .total==4)]|length)==3 and .indicator_classes==[{class:"OUTCOME",closed:3,total:3},{class:"DRIVER",closed:5,total:5},{class:"GUARDRAIL",closed:4,total:4}]' "$RUNNER_TEMP/adoption-report.json" >/dev/null
+
+          jq '.[0].decision="FIXED_POINT"' "$RUNNER_TEMP/core-receipts.json" > "$RUNNER_TEMP/invalid-core-receipts.json"
+          bash scripts/evaluate-interchange-adoption.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/invalid-core-receipts.json" "$RUNNER_TEMP/facts.json" "$RUNNER_TEMP/invalid-core-decision.json" "$SUBJECT_SHA"
+          jq -e '.decision=="FAIL_CLOSED" and .summary.closed==0 and .summary.refuted==12 and .claim.stage=="RESOLUTION" and .claim.step=="RESOLVE_ACTIVITY_CARDINALITY" and .claim.reason=="UNRECOGNIZED_CORE_ACTIVITY_RESOLUTION_DECISION"' "$RUNNER_TEMP/invalid-core-decision.json" >/dev/null
+
+          {
+            echo '## Infra-evidence canonical interchange adoption'
+            jq -r '"- adoption state: \(.adoption.state)","- released-domain adoption: \(.adoption.released_domain_adoption.observed)/\(.adoption.released_domain_adoption.total)","- meta cells: \(.summary.closed)/\(.summary.total) CLOSED","- bundle files: \(.summary.bundle_files)/5","- local checks: \(.summary.local_checks_closed)/\(.summary.local_checks_total)","- proofs: " + ([.proofs[]|"\(.choice) \(.closed)/\(.total)"]|join(", ")),"- indicators: " + ([.indicator_classes[]|"\(.class) \(.closed)/\(.total)"]|join(", ")),"- repository writes: \(.runtime.repository.writes)","- external required gates: \(.authority.cross_project_required_gates)","- local test executions: \(.runtime.local_tests_run)","- exporter peak RSS: \(.runtime.exporter.peak_rss_kib) KiB","- exporter wall time: \(.runtime.exporter.wall_ms) ms","- connector: \(.adoption.connector_implementation)"' "$RUNNER_TEMP/adoption-report.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload interchange adoption evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: infra-evidence-interchange-${{ github.event.pull_request.head.sha || github.sha }}
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/bundle-a
+            ${{ runner.temp }}/bundle-b
+            ${{ runner.temp }}/adoption-report.json
+            ${{ runner.temp }}/conformance.json
+            ${{ runner.temp }}/checksum-mismatch.json
+            ${{ runner.temp }}/invalid-unknown.json
+            ${{ runner.temp }}/invalid-core-decision.json
+            ${{ runner.temp }}/core-receipts.json
+            ${{ runner.temp }}/facts.json
+            ${{ runner.temp }}/runtime.json
+            ${{ runner.temp }}/immutable-inputs.json
+            ${{ runner.temp }}/interchange-graph.json
