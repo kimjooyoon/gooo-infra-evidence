@@ -35,9 +35,9 @@ type openAPIDocument struct {
 }
 
 type counts struct {
-	OpenAPIOperations   int `json:"openapi_operation_occurrences"`
-	HandlerDefinitions  int `json:"handler_definition_occurrences"`
-	HandlerSignatures   int `json:"handler_signature_occurrences"`
+	OpenAPIOperations    int `json:"openapi_operation_occurrences"`
+	HandlerDefinitions   int `json:"handler_definition_occurrences"`
+	HandlerSignatures    int `json:"handler_signature_occurrences"`
 	HandlerRegistrations int `json:"handler_registration_occurrences"`
 }
 
@@ -79,11 +79,11 @@ func emit(project projectManifest, state, reason, nextOperation, unknownClass st
 		"schema":   "gooo/infra-evidence/service-symbol-receipt/v1",
 		"decision": decision,
 		"subject": map[string]any{
-			"project_id":         project.ID,
-			"source_file":        project.Paths.ServiceSource,
-			"source_digest":      sourceDigest,
-			"openapi_file":       project.Paths.OpenAPI,
-			"openapi_digest":     openAPIDigest,
+			"project_id":     project.ID,
+			"source_file":    project.Paths.ServiceSource,
+			"source_digest":  sourceDigest,
+			"openapi_file":   project.Paths.OpenAPI,
+			"openapi_digest": openAPIDigest,
 		},
 		"binding": map[string]any{
 			"openapi_operation": project.OpenAPIOperation,
