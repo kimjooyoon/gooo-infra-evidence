@@ -162,22 +162,24 @@ jq -S -n \
       $f.conformer.decision=="CONFORMANT" and
       $f.conformer.closed==$d.expected.local_checks and $f.conformer.total==$d.expected.local_checks
     elif $id=="UNKNOWN_CAUSALITY" then
-      $f.unknown_causality!=null and
-      $f.unknown_causality.reports_observed==$d.expected.unknown_paths and
-      ($f.unknown_causality.report_digests|length)==$d.expected.unknown_paths and
-      $f.unknown_causality.coordinates_observed==$d.expected.unknown_coordinates and
-      $f.unknown_causality.direct_missing_observed==1 and
-      $f.unknown_causality.dependency_blocked_observed==1
+      if $f.unknown_causality==null then null
+      else $f.unknown_causality.reports_observed==$d.expected.unknown_paths and
+        ($f.unknown_causality.report_digests|length)==$d.expected.unknown_paths and
+        $f.unknown_causality.coordinates_observed==$d.expected.unknown_coordinates and
+        $f.unknown_causality.direct_missing_observed==1 and
+        $f.unknown_causality.dependency_blocked_observed==1
+      end
     elif $id=="DETERMINISTIC_REPLAY" then
       $f.replay.source_satisfied==$d.expected.source_replay and
       $f.replay.file_satisfied==$d.expected.file_replay
     elif $id=="REFUTED_COUNTEREXAMPLES" then
-      $f.refuted_counterexamples!=null and
-      $f.refuted_counterexamples.reports_observed==$d.expected.refuted_paths and
-      ($f.refuted_counterexamples.report_digests|length)==$d.expected.refuted_paths and
-      $f.refuted_counterexamples.malformed_unknown_state=="REFUTED" and
-      $f.refuted_counterexamples.fixed_point_state=="REFUTED" and
-      $f.refuted_counterexamples.unknown_top_level_state=="REFUTED"
+      if $f.refuted_counterexamples==null then null
+      else $f.refuted_counterexamples.reports_observed==$d.expected.refuted_paths and
+        ($f.refuted_counterexamples.report_digests|length)==$d.expected.refuted_paths and
+        $f.refuted_counterexamples.malformed_unknown_state=="REFUTED" and
+        $f.refuted_counterexamples.fixed_point_state=="REFUTED" and
+        $f.refuted_counterexamples.unknown_top_level_state=="REFUTED"
+      end
     elif $id=="AUTHORITY_BOUNDARY" then
       $f.authority.repository_writes==0 and $f.authority.local_tests==0 and
       $f.authority.local_test_executions==0 and
