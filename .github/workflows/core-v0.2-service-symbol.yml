@@ -24,17 +24,34 @@ jobs:
         with:
           go-version: '1.27.x'
           cache: false
-      - name: Conform Go 1.27 observer tool
+      - name: Require Go 1.27
         run: |
           set -euo pipefail
           case "$(go env GOVERSION)" in go1.27.*) ;; *) exit 1 ;; esac
+      - name: Require canonical Go formatting
+        run: |
+          set -euo pipefail
           gofmt -d scripts/observe-service-symbol.go > "$RUNNER_TEMP/gofmt.diff"
           cat "$RUNNER_TEMP/gofmt.diff"
           test ! -s "$RUNNER_TEMP/gofmt.diff"
+      - name: Require zero Go fix rewrites
+        run: |
+          set -euo pipefail
+          set +e
           go tool fix -diff scripts/observe-service-symbol.go > "$RUNNER_TEMP/go-fix.diff"
+          fix_status=$?
+          set -e
           cat "$RUNNER_TEMP/go-fix.diff"
+          echo "fix exit status: $fix_status"
+          test "$fix_status" -eq 0
           test ! -s "$RUNNER_TEMP/go-fix.diff"
+      - name: Require zero Go vet findings
+        run: |
+          set -euo pipefail
           go vet scripts/observe-service-symbol.go
+      - name: Record Go toolchain receipt
+        run: |
+          set -euo pipefail
           jq -n --arg version "$(go env GOVERSION)" '{schema:"gooo/infra-evidence/go-toolchain/v1",version:$version,gofmt_changes:0,fix_changes:0,vet_findings:0}' > "$RUNNER_TEMP/go-toolchain.json"
       - name: Download immutable core and generator releases
         env:
