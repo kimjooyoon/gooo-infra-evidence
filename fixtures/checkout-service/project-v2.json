@@ -1,0 +1,22 @@
+{
+  "schema": "gooo/infra-evidence/project/v2",
+  "id": "checkout://service/v2",
+  "resource_address": "example_service.checkout",
+  "remote_id": "svc-checkout-prod",
+  "artifact_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "deployment_target": "prod/checkout",
+  "openapi_operation": "getHealth",
+  "openapi_path": "/health",
+  "openapi_method": "GET",
+  "service_handler": "health",
+  "paths": {
+    "terraform_declaration": "terraform/main.tf",
+    "terraform_plan": "terraform/plan.json",
+    "terraform_state": "terraform/state.json",
+    "openapi": "openapi.json",
+    "service_source": "service/main-v2.go",
+    "build_receipt": "build/receipt-v2.json",
+    "deployment_receipt": "deployment/receipt.json",
+    "runtime_observations": ["runtime/observation-1.json", "runtime/observation-2.json"]
+  }
+}
