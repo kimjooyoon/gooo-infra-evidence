@@ -34,7 +34,7 @@ authority is exactly:
 
 ```json
 {
-  "projection_owner": "INTERCHANGE_SPECIFICATION",
+  "projection_owner": "INFRA_EVIDENCE",
   "domain_release_adoption_claimed": false,
   "source_repository_writes": 0,
   "product_generation_authorized": false
@@ -98,21 +98,27 @@ denominators are both four per class:
 | 11 | `REFUTED_COUNTEREXAMPLES` / `RefuteMalformedCoreReports` | REGRESSION | GUARDRAIL |
 | 12 | `AUTHORITY_BOUNDARY` / `PreserveInfraAuthorityBoundary` | REGRESSION | GUARDRAIL |
 
-The dependency graph is intentionally ordered: release observations precede
-the source and projection; the envelope precedes conformance; conformance
-precedes the causality and counterexample observations; the final authority
-cell depends on all three regression branches. Generic Interchange product
-cells and unrelated Local or Design release cells are not in this denominator.
+The dependency graph is materialized by the Gooo graph, not self-looped
+activities: each activity consumes the preceding activity output entity, and
+the workflow observes the resulting `used`/`wasGeneratedBy` bindings. It
+requires all twelve cell bindings and the exact denominator frontier before it
+sets the graph-binding fact. Release observations precede the source and
+projection; the envelope precedes conformance; conformance precedes the
+causality and counterexample observations; the final authority cell consumes
+all three regression outputs. Generic Interchange product cells and unrelated
+Local or Design release cells are not in this denominator.
 
 ## Evidence and state rules
 
-The normal run uses one current-run bundle, its six-file payload digest, its
+The normal run uses one current-run eight-file bundle, its bundle digest, its
 eight-file replay, and the conformer report. The eight relations, eight
 evidence records, and eight resolutions all point to the immutable Infra plan
 asset and its JSON pointers. The public Infra replay is a source replay
 receipt; the workflow separately compares all eight envelope files.
 
-The workflow then creates seven actual evaluator reports from the same bundle:
+The workflow then creates exactly five actual evaluator reports from the same
+bundle: one normal candidate is counted from conformer/replay evidence, two
+UNKNOWN reports, and three REFUTED reports.
 
 1. A missing Core receipt yields `UNKNOWN` with `DIRECT_MISSING` at the
    missing activity and `DEPENDENCY_BLOCKED` on downstream cells, preserving
@@ -123,9 +129,9 @@ The workflow then creates seven actual evaluator reports from the same bundle:
    `reason`, `unknown_class`, `next_operation`, and `blocked_by`.
 3. A malformed `UNKNOWN` receipt yields `REFUTED`.
 4. A `FIXED_POINT` receipt yields `REFUTED`.
-5. An unrecognized top-level decision yields `REFUTED`.
-6. A submitted `iac_engine: UNKNOWN` receipt yields `REFUTED`.
-7. A submitted unrecognized OpenTofu receipt state yields `REFUTED`.
+5. An unrecognized top-level decision yields `REFUTED`; the same report also
+   contains an earlier valid UNKNOWN so the evaluator proves that its
+   top-level claim selects `REFUTED` first.
 
 Only after those reports are hashed are their report digests merged into the
 facts file. The final normal evaluator then runs from the merged facts. This
@@ -134,19 +140,24 @@ after the assertion itself.
 
 Core `UNKNOWN` is accepted only when the decision is `UNKNOWN`, claim state is
 `UNKNOWN`, occurrences are zero, the reason is `ACTIVITY_NOT_FOUND`, all six
-coordinates are valid, and `blocked_by` is an array. Missing, malformed, or
+coordinates are valid, `unknown_class` is exactly `DIRECT_MISSING`, and
+`blocked_by` is exactly `[]`. A downstream causal claim alone may be
+`DEPENDENCY_BLOCKED`, with its smallest graph frontier. Missing, malformed, or
 unrecognized Core receipts are never converted to zero; they remain
-`UNKNOWN` or `REFUTED` as specified by the report. Unobserved values are
-`null` or `UNOBSERVED`, not zero.
+`UNKNOWN` or `REFUTED` as specified by the report. A REFUTED cell always wins
+the report's top-level claim over an earlier UNKNOWN. Unobserved values are
+`null` or `UNOBSERVED`, not zero; no phase label changes a null fact into a
+closed fact.
 
 ## Execution and receipt accounting
 
 The runtime artifact separates current CI work from upstream release evidence.
 `ci_build_executions=0`, `ci_build_wall_ms=0`, and
 `ci_build_reason=NO_PRODUCT_BUILD_REQUIRED` state that this product does not
-need a build. The current bundle records separate conformance, scenario, and
-replay execution and wall-time fields. `current_subject_checks_executed` is
-the sum of those current-run checks; it is not an upstream test count.
+need a build. The current bundle records actual Core graph and resolution,
+conformance, scenario, and replay execution and wall-time fields.
+`current_subject_checks_executed` is the sum of those current-run checks; it
+is not an upstream test count.
 
 `upstream_test_receipts_available`, `upstream_test_receipts_reused`, and
 `stale_receipts` are distinct counters. A reusable upstream receipt is accepted
@@ -168,7 +179,7 @@ The PR CI reports the following observed targets independently:
 | Relations / evidence / resolutions | 8/8/8 |
 | Kit conformer checks | 10/10 |
 | Source replay / file replay | 1/1 / 8/8 |
-| Normal / UNKNOWN / REFUTED paths | at least 1/2/1 |
+| Normal / UNKNOWN / REFUTED paths | exactly 1/2/3 |
 | UNKNOWN coordinates | 6 |
 | Meta cells | 12/12 |
 | Proof and indicator class cells | 4/4/4 each |

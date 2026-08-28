@@ -125,7 +125,7 @@ jq -S -n \
     source:{asset_name:$asset_name,asset_sha256:$asset_sha,member:$asset_name,schema:$schema},
     prior_contract:$prior_contract,
     relation_count:$relations,evidence_count:$relations,resolution_count:$relations,unknown_count:0,
-    authority:{projection_owner:"INTERCHANGE_SPECIFICATION",domain_release_adoption_claimed:false,source_repository_writes:0,product_generation_authorized:false}}' > "$output/project.json"
+    authority:{projection_owner:"INFRA_EVIDENCE",domain_release_adoption_claimed:false,source_repository_writes:0,product_generation_authorized:false}}' > "$output/project.json"
 
 check_ids=$(jq -c '.expected.local_check_ids' "$denom")
 jq -S -n --argjson checks "$check_ids" \

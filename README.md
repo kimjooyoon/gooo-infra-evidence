@@ -62,8 +62,11 @@ The released-domain envelope v2 candidate keeps its observed Terraform binding
 as `iac_engine: TERRAFORM`; it does not relabel that fixture as OpenTofu.
 OpenTofu adoption is `0/1 UNKNOWN` until an immutable, machine-readable JSON
 receipt supplies `iac_engine`, engine version, release id, binary digest, and
-format version. The `terraform_version` JSON key is not used to infer the
-engine. Unknown engines or unknown receipt states fail closed.
+format version. `iac_engine` is explicitly one of `OPENTOFU`, `TERRAFORM`, or
+`UNKNOWN`; the `terraform_version` JSON key is not used to infer the engine.
+With no actual OpenTofu receipt, the only next operation is
+`PROVIDE_IMMUTABLE_OPENTOFU_JSON_RECEIPT`. Unknown engines or unknown receipt
+states fail closed.
 
 No OpenTofu source import, vendor, build, `init`, `plan`, `apply`, `test`,
 provider, network, or cloud access is in this candidate. Although a future

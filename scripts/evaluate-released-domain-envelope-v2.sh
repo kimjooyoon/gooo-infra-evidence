@@ -94,8 +94,8 @@ jq -S -n \
     $r.decision=="UNKNOWN" and $r.occurrences==0 and
     $r.claim.state=="UNKNOWN" and $r.claim.reason=="ACTIVITY_NOT_FOUND" and
     ($r.claim.stage|text) and ($r.claim.step|text) and ($r.claim.reason|text) and
-    ($r.claim.unknown_class|text) and ($r.claim.next_operation|text) and
-    ($r.claim.next_operation!="NONE") and ($r.claim.blocked_by|type)=="array";
+    $r.claim.unknown_class=="DIRECT_MISSING" and ($r.claim.next_operation|text) and
+    ($r.claim.next_operation!="NONE") and $r.claim.blocked_by==[];
   def core_state($activity):
     ($receipt_by[$activity]//null) as $r |
     if $r==null then
@@ -126,7 +126,11 @@ jq -S -n \
     elif $id=="INFRA_RELEASE" then $f.infra_release.verified
     elif $id=="META_ACTIVITY_AUTHORITY" then
       $f.meta_activity_authority.activities_observed==$d.target_cells and
-      $f.meta_activity_authority.resolutions_observed==$d.target_cells
+      $f.meta_activity_authority.resolutions_observed==$d.target_cells and
+      $f.meta_activity_authority.graph_dependency_bindings_verified==true and
+      $f.meta_activity_authority.dependency_bindings_observed==$d.target_cells and
+      $f.meta_activity_authority.dependency_edges_observed==([$d.cells[].depends_on[]]|length) and
+      ($f.meta_activity_authority.graph_sha256|type=="string" and test("^[0-9a-f]{64}$"))
     elif $id=="INFRA_DEPENDENCY_SOURCE" then
       $f.infra_dependency_source.relations_observed==$d.expected.relations and
       $f.infra_dependency_source.prior_semantic_edges==$d.expected.prior_infra.semantic_edges and
@@ -142,7 +146,13 @@ jq -S -n \
       $f.infra_dependency_source.opentofu_adoption.state==$d.expected.opentofu_adoption.state and
       $f.infra_dependency_source.opentofu_adoption.next_operation==$d.expected.opentofu_adoption.next_operation and
       $f.infra_dependency_source.opentofu_receipt.next_operation==$d.expected.opentofu_adoption.next_operation
-    elif $id=="PRODUCT_PROJECTION" then $f.product_projection.observed==true
+    elif $id=="PRODUCT_PROJECTION" then
+      $f.product_projection.observed==true and
+      $f.product_projection.projection_owner==$d.expected.projection_owner and
+      $project[0].authority.projection_owner==$d.expected.projection_owner and
+      $project[0].authority.domain_release_adoption_claimed==false and
+      $project[0].authority.source_repository_writes==0 and
+      $project[0].authority.product_generation_authorized==false
     elif $id=="EIGHT_FILE_ENVELOPE" then
       $f.envelope.files==$d.expected.envelope_files and
       $f.envelope.relations==$d.expected.relations and
@@ -152,24 +162,22 @@ jq -S -n \
       $f.conformer.decision=="CONFORMANT" and
       $f.conformer.closed==$d.expected.local_checks and $f.conformer.total==$d.expected.local_checks
     elif $id=="UNKNOWN_CAUSALITY" then
-      if $f.unknown_causality==null then (($phase|tostring|startswith("unknown")) or ($phase|tostring|startswith("refuted")))
-      else $f.unknown_causality.reports_observed >= $d.expected.unknown_paths_min and
-        $f.unknown_causality.coordinates_observed==$d.expected.unknown_coordinates and
-        $f.unknown_causality.direct_missing_observed>=1 and
-        $f.unknown_causality.dependency_blocked_observed>=1
-      end
+      $f.unknown_causality!=null and
+      $f.unknown_causality.reports_observed==$d.expected.unknown_paths and
+      ($f.unknown_causality.report_digests|length)==$d.expected.unknown_paths and
+      $f.unknown_causality.coordinates_observed==$d.expected.unknown_coordinates and
+      $f.unknown_causality.direct_missing_observed==1 and
+      $f.unknown_causality.dependency_blocked_observed==1
     elif $id=="DETERMINISTIC_REPLAY" then
       $f.replay.source_satisfied==$d.expected.source_replay and
       $f.replay.file_satisfied==$d.expected.file_replay
     elif $id=="REFUTED_COUNTEREXAMPLES" then
-      if $f.refuted_counterexamples==null then (($phase|tostring|startswith("unknown")) or ($phase|tostring|startswith("refuted")))
-      else $f.refuted_counterexamples.reports_observed >= $d.expected.refuted_paths_min and
-        $f.refuted_counterexamples.malformed_unknown_state=="REFUTED" and
-        $f.refuted_counterexamples.fixed_point_state=="REFUTED" and
-        $f.refuted_counterexamples.unknown_top_level_state=="REFUTED" and
-        $f.refuted_counterexamples.iac_unknown_engine_state=="REFUTED" and
-        $f.refuted_counterexamples.iac_unknown_top_level_state=="REFUTED"
-      end
+      $f.refuted_counterexamples!=null and
+      $f.refuted_counterexamples.reports_observed==$d.expected.refuted_paths and
+      ($f.refuted_counterexamples.report_digests|length)==$d.expected.refuted_paths and
+      $f.refuted_counterexamples.malformed_unknown_state=="REFUTED" and
+      $f.refuted_counterexamples.fixed_point_state=="REFUTED" and
+      $f.refuted_counterexamples.unknown_top_level_state=="REFUTED"
     elif $id=="AUTHORITY_BOUNDARY" then
       $f.authority.repository_writes==0 and $f.authority.local_tests==0 and
       $f.authority.local_test_executions==0 and
@@ -237,8 +245,10 @@ jq -S -n \
   ([$cells[]|select(.state=="CLOSED")]|length) as $closed |
   ([$cells[]|select(.state=="UNKNOWN")]|length) as $unknown |
   ([$cells[]|select(.state=="REFUTED")]|length) as $refuted |
-  (if $claim_cell=="" then
-     ([$cells[]|select(.state!="CLOSED")][0]//null)
+  ([$cells[]|select(.state=="REFUTED")][0]//null) as $first_refuted |
+  (if $first_refuted!=null then $first_refuted
+   elif $claim_cell=="" then
+     ([$cells[]|select(.state=="UNKNOWN")][0]//null)
    else
      ([$cells[]|select(.id==$claim_cell)][0] // error("claim cell not found")) as $focused |
      if $focused.state=="CLOSED" then error("claim cell must be unresolved") else $focused end

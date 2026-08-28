@@ -1,6 +1,7 @@
 package infraenvelopev2
 namespace infraenvelopev2
 
+entity ReleasedEnvelopeInput id "infra://released-domain-envelope-v2/released-envelope-input"
 entity CoreReleaseReceipt id "infra://released-domain-envelope-v2/core-release"
 entity InterchangeSpecReleaseReceipt id "infra://released-domain-envelope-v2/interchange-spec-release"
 entity InfraReleaseReceipt id "infra://released-domain-envelope-v2/infra-release"
@@ -14,15 +15,15 @@ entity DeterministicReplayReceipt id "infra://released-domain-envelope-v2/determ
 entity RefutedCounterexampleReports id "infra://released-domain-envelope-v2/refuted-counterexamples"
 entity AuthorityBoundaryReceipt id "infra://released-domain-envelope-v2/authority-boundary"
 
-activity ObserveCurrentCoreRelease(CoreReleaseReceipt) -> CoreReleaseReceipt
-activity ObserveInterchangeSpecRelease(InterchangeSpecReleaseReceipt) -> InterchangeSpecReleaseReceipt
-activity ObserveInfraSemanticPlanRelease(InfraReleaseReceipt) -> InfraReleaseReceipt
-activity BindTwelveMetaActivities(MetaActivityReceiptSet) -> MetaActivityReceiptSet
-activity ObserveEightInfraDependencies(InfraDependencySource) -> InfraDependencySource
-activity ProjectInfraEnvelope(ProductProjection) -> ProductProjection
-activity PublishEightFileInfraEnvelope(EightFileEnvelope) -> EightFileEnvelope
-activity ConformInfraEnvelopeReadOnly(ReadOnlyConformance) -> ReadOnlyConformance
-activity PreserveUnknownCausality(UnknownCausalityReportSet) -> UnknownCausalityReportSet
-activity VerifyEnvelopeReplay(DeterministicReplayReceipt) -> DeterministicReplayReceipt
-activity RefuteMalformedCoreReports(RefutedCounterexampleReports) -> RefutedCounterexampleReports
-activity PreserveInfraAuthorityBoundary(AuthorityBoundaryReceipt) -> AuthorityBoundaryReceipt
+activity ObserveCurrentCoreRelease(ReleasedEnvelopeInput) -> CoreReleaseReceipt
+activity ObserveInterchangeSpecRelease(CoreReleaseReceipt) -> InterchangeSpecReleaseReceipt
+activity ObserveInfraSemanticPlanRelease(CoreReleaseReceipt) -> InfraReleaseReceipt
+activity BindTwelveMetaActivities(CoreReleaseReceipt, InterchangeSpecReleaseReceipt, InfraReleaseReceipt) -> MetaActivityReceiptSet
+activity ObserveEightInfraDependencies(InfraReleaseReceipt, MetaActivityReceiptSet) -> InfraDependencySource
+activity ProjectInfraEnvelope(MetaActivityReceiptSet, InfraDependencySource) -> ProductProjection
+activity PublishEightFileInfraEnvelope(ProductProjection) -> EightFileEnvelope
+activity ConformInfraEnvelopeReadOnly(EightFileEnvelope) -> ReadOnlyConformance
+activity PreserveUnknownCausality(ReadOnlyConformance) -> UnknownCausalityReportSet
+activity VerifyEnvelopeReplay(EightFileEnvelope) -> DeterministicReplayReceipt
+activity RefuteMalformedCoreReports(ReadOnlyConformance) -> RefutedCounterexampleReports
+activity PreserveInfraAuthorityBoundary(UnknownCausalityReportSet, DeterministicReplayReceipt, RefutedCounterexampleReports) -> AuthorityBoundaryReceipt

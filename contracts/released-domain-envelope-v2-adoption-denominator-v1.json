@@ -23,9 +23,10 @@
     "unknown_coordinates": 6,
     "source_replay": 1,
     "file_replay": 8,
-    "normal_paths_min": 1,
-    "unknown_paths_min": 2,
-    "refuted_paths_min": 1,
+    "normal_paths": 1,
+    "unknown_paths": 2,
+    "refuted_paths": 3,
+    "projection_owner": "INFRA_EVIDENCE",
     "prior_infra": {
       "semantic_dependencies": 8,
       "semantic_edges": 6,
