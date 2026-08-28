@@ -1,0 +1,10 @@
+package semanticdeploymentplanunsupported
+namespace semanticdeploymentplanunsupported
+
+entity DeploymentSeed id "infra://semantic-deployment-plan/unsupported/seed"
+entity DeploymentState id "infra://semantic-deployment-plan/unsupported/state"
+entity DeploymentPlanState id "infra://semantic-deployment-plan/unsupported/plan"
+
+activity EstablishUnsupportedDeployment(DeploymentSeed) -> DeploymentState computes "claim.observe:recoverable|establish-unsupported-deployment"
+activity InferUnsupportedDeploymentPlan(DeploymentState) -> DeploymentPlanState computes "claim.edge:implies|unsupported-deployment-implication"
+

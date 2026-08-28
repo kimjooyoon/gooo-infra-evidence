@@ -1,0 +1,8 @@
+package semanticdeploymentplanmissing
+namespace semanticdeploymentplanmissing
+
+entity MissingDeploymentIntent id "infra://semantic-deployment-plan/missing/deployment-intent"
+entity DeploymentPlanState id "infra://semantic-deployment-plan/missing/deployment-plan"
+
+activity PlanWithoutDeploymentIntent(MissingDeploymentIntent) -> DeploymentPlanState computes "claim.edge:requires|deployment-plan-requires-missing-intent"
+

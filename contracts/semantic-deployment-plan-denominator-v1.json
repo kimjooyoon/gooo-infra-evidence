@@ -1,0 +1,19 @@
+{
+  "schema": "gooo/infra-evidence/semantic-deployment-plan-denominator/v1",
+  "version": 1,
+  "cells": [
+    {"id":"CORE_RELEASE","activity":"ObserveCoreClaimDependencyRelease","indicator_class":"DRIVER","proof_choice":"FOUNDATION","stage":"CORE_RELEASE","step":"OBSERVE_PINNED_CORE_RELEASE","reason":"PINNED_CORE_RELEASE_INVALID","next_operation":"RESTORE_PINNED_CORE_RELEASE"},
+    {"id":"INFRA_RELEASE","activity":"ObservePinnedInfraContractRelease","indicator_class":"OUTCOME","proof_choice":"FOUNDATION","stage":"INFRA_RELEASE","step":"OBSERVE_PINNED_INFRA_CONTRACT_RELEASE","reason":"PINNED_INFRA_CONTRACT_RELEASE_INVALID","next_operation":"RESTORE_PINNED_INFRA_CONTRACT_RELEASE"},
+    {"id":"DEPLOYMENT_PROGRAM","activity":"ValidateSemanticDeploymentProgram","indicator_class":"DRIVER","proof_choice":"FOUNDATION","stage":"DEPLOYMENT_PROGRAM","step":"VALIDATE_GOOO_DEPLOYMENT_PROGRAM","reason":"DEPLOYMENT_PROGRAM_INVALID","next_operation":"RESTORE_GOOO_DEPLOYMENT_PROGRAM"},
+    {"id":"PLAN_CONTRACT","activity":"BindDeploymentPlanContract","indicator_class":"GUARDRAIL","proof_choice":"FOUNDATION","stage":"PLAN_CONTRACT","step":"BIND_DECLARED_DEPLOYMENT_PLAN_CONTRACT","reason":"DEPLOYMENT_PLAN_CONTRACT_INVALID","next_operation":"RESTORE_DEPLOYMENT_PLAN_CONTRACT"},
+    {"id":"DEPENDENCY_COMMAND","activity":"ExecuteReleasedDependencyPlanner","indicator_class":"DRIVER","proof_choice":"COHERENCE","stage":"DEPENDENCY_COMMAND","step":"EXECUTE_RELEASED_DEPENDENCY_COMMAND","reason":"DEPENDENCY_COMMAND_REPORT_INVALID","next_operation":"RESTORE_RELEASED_DEPENDENCY_REPORT"},
+    {"id":"EIGHT_DEPENDENCIES","activity":"BindEightDeploymentDependencies","indicator_class":"OUTCOME","proof_choice":"COHERENCE","stage":"DEPLOYMENT_GRAPH","step":"BIND_EIGHT_TYPED_DEPENDENCIES","reason":"DEPLOYMENT_DEPENDENCY_GRAPH_MISMATCH","next_operation":"RESTORE_DECLARED_DEPLOYMENT_DEPENDENCIES"},
+    {"id":"JSON_PLAN","activity":"GenerateJSONDeploymentPlan","indicator_class":"OUTCOME","proof_choice":"COHERENCE","stage":"PLAN_GENERATION","step":"GENERATE_JSON_DEPLOYMENT_PLAN","reason":"JSON_DEPLOYMENT_PLAN_INVALID","next_operation":"REGENERATE_JSON_DEPLOYMENT_PLAN"},
+    {"id":"MARKDOWN_PLAN","activity":"GenerateMarkdownDeploymentPlan","indicator_class":"OUTCOME","proof_choice":"COHERENCE","stage":"PLAN_GENERATION","step":"GENERATE_MARKDOWN_DEPLOYMENT_PLAN","reason":"MARKDOWN_DEPLOYMENT_PLAN_INVALID","next_operation":"REGENERATE_MARKDOWN_DEPLOYMENT_PLAN"},
+    {"id":"UNKNOWN_RECOVERY","activity":"PreserveUnknownRecoveryCoordinates","indicator_class":"GUARDRAIL","proof_choice":"REGRESSION","stage":"UNKNOWN_RECOVERY","step":"PRESERVE_UNKNOWN_COORDINATES","reason":"UNKNOWN_RECOVERY_COORDINATES_INVALID","next_operation":"RESTORE_UNKNOWN_RECOVERY_FIXTURE"},
+    {"id":"REFUTED_BOUNDARIES","activity":"PreserveRefutedDeploymentBoundaries","indicator_class":"GUARDRAIL","proof_choice":"REGRESSION","stage":"REFUTED_BOUNDARIES","step":"PRESERVE_THREE_REFUTED_BOUNDARIES","reason":"REFUTED_DEPLOYMENT_BOUNDARIES_INVALID","next_operation":"RESTORE_REFUTED_BOUNDARY_FIXTURES"},
+    {"id":"DETERMINISTIC_REPLAY","activity":"ReplaySemanticDeploymentPlan","indicator_class":"DRIVER","proof_choice":"REGRESSION","stage":"REPLAY","step":"COMPARE_GENERATED_DEPLOYMENT_PLAN","reason":"DEPLOYMENT_PLAN_REPLAY_MISMATCH","next_operation":"RESTORE_DETERMINISTIC_PROJECTOR"},
+    {"id":"UTILITY_AUTHORITY_BOUNDARY","activity":"PreserveUtilityAuthorityBoundary","indicator_class":"GUARDRAIL","proof_choice":"REGRESSION","stage":"AUTHORITY","step":"PRESERVE_UTILITY_AND_AUTHORITY_SEPARATION","reason":"UTILITY_AUTHORITY_BOUNDARY_VIOLATED","next_operation":"REMOVE_UNEVIDENCED_UTILITY_OR_EXECUTION_AUTHORITY"}
+  ]
+}
+

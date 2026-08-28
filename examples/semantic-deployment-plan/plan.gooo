@@ -1,0 +1,19 @@
+package semanticdeploymentplan
+namespace semanticdeploymentplan
+
+entity DeploymentIntent id "infra://deployment/checkout-prod-plan-v1/intent"
+entity ClaimDependencyPrimitive id "gooo://core/release/v0.4.0-dev/claim-dependency-causality"
+entity DeploymentContractState id "infra://deployment/checkout-prod-plan-v1/state/contract"
+entity OpenAPIState id "infra://deployment/checkout-prod-plan-v1/state/openapi"
+entity ServiceHandlerState id "infra://deployment/checkout-prod-plan-v1/state/service-handler"
+entity TerraformResourceState id "infra://deployment/checkout-prod-plan-v1/state/terraform-resource"
+entity DeploymentDriftState id "infra://deployment/checkout-prod-plan-v1/state/drift"
+entity DeploymentPlanState id "infra://deployment/checkout-prod-plan-v1/state/plan"
+
+activity EstablishDeploymentContract(DeploymentIntent, ClaimDependencyPrimitive) -> DeploymentContractState computes "claim.observe:recoverable|establish-deployment-contract-from-intent-and-released-primitive"
+activity BindOpenAPIContract(DeploymentContractState) -> OpenAPIState computes "claim.edge:requires|openapi-contract-requires-deployment-contract"
+activity BindServiceHandler(DeploymentContractState, OpenAPIState) -> ServiceHandlerState computes "claim.edge:supports|service-handler-supports-contract-and-openapi-operation"
+activity BindTerraformResource(OpenAPIState, ServiceHandlerState) -> TerraformResourceState computes "claim.edge:requires|terraform-resource-requires-openapi-and-service-handler"
+activity DetectDeploymentDrift(DeploymentContractState, TerraformResourceState) -> DeploymentDriftState computes "claim.edge:contradicts|deployment-drift-can-contradict-contract-and-terraform-resource"
+activity CloseDeploymentPlan(DeploymentDriftState) -> DeploymentPlanState computes "claim.edge:failure-entailment|unresolved-deployment-drift-entails-plan-failure"
+

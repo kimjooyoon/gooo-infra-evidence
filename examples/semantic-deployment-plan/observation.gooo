@@ -1,0 +1,41 @@
+package semanticdeploymentplanobservation
+namespace semanticdeploymentplanobservation
+
+entity CoreReleaseReceipt id "infra://semantic-deployment-plan/observation/core-release"
+entity InfraReleaseReceipt id "infra://semantic-deployment-plan/observation/infra-release"
+entity DeploymentProgramReceipt id "infra://semantic-deployment-plan/observation/deployment-program"
+entity PlanContractReceipt id "infra://semantic-deployment-plan/observation/plan-contract"
+entity DependencyCommandReceipt id "infra://semantic-deployment-plan/observation/dependency-command"
+entity DependencyGraphReceipt id "infra://semantic-deployment-plan/observation/dependency-graph"
+entity JSONPlanReceipt id "infra://semantic-deployment-plan/observation/json-plan"
+entity MarkdownPlanReceipt id "infra://semantic-deployment-plan/observation/markdown-plan"
+entity UnknownRecoveryReceipt id "infra://semantic-deployment-plan/observation/unknown-recovery"
+entity RefutedBoundaryReceipt id "infra://semantic-deployment-plan/observation/refuted-boundaries"
+entity ReplayReceipt id "infra://semantic-deployment-plan/observation/replay"
+entity UtilityAuthorityReceipt id "infra://semantic-deployment-plan/observation/utility-authority"
+entity CoreReleaseCell id "infra://semantic-deployment-plan/cell/core-release"
+entity InfraReleaseCell id "infra://semantic-deployment-plan/cell/infra-release"
+entity DeploymentProgramCell id "infra://semantic-deployment-plan/cell/deployment-program"
+entity PlanContractCell id "infra://semantic-deployment-plan/cell/plan-contract"
+entity DependencyCommandCell id "infra://semantic-deployment-plan/cell/dependency-command"
+entity DependencyGraphCell id "infra://semantic-deployment-plan/cell/dependency-graph"
+entity JSONPlanCell id "infra://semantic-deployment-plan/cell/json-plan"
+entity MarkdownPlanCell id "infra://semantic-deployment-plan/cell/markdown-plan"
+entity UnknownRecoveryCell id "infra://semantic-deployment-plan/cell/unknown-recovery"
+entity RefutedBoundaryCell id "infra://semantic-deployment-plan/cell/refuted-boundaries"
+entity ReplayCell id "infra://semantic-deployment-plan/cell/replay"
+entity UtilityAuthorityCell id "infra://semantic-deployment-plan/cell/utility-authority"
+
+activity ObserveCoreClaimDependencyRelease(CoreReleaseReceipt) -> CoreReleaseCell
+activity ObservePinnedInfraContractRelease(InfraReleaseReceipt) -> InfraReleaseCell
+activity ValidateSemanticDeploymentProgram(DeploymentProgramReceipt) -> DeploymentProgramCell
+activity BindDeploymentPlanContract(PlanContractReceipt) -> PlanContractCell
+activity ExecuteReleasedDependencyPlanner(DependencyCommandReceipt) -> DependencyCommandCell
+activity BindEightDeploymentDependencies(DependencyGraphReceipt) -> DependencyGraphCell
+activity GenerateJSONDeploymentPlan(JSONPlanReceipt) -> JSONPlanCell
+activity GenerateMarkdownDeploymentPlan(MarkdownPlanReceipt) -> MarkdownPlanCell
+activity PreserveUnknownRecoveryCoordinates(UnknownRecoveryReceipt) -> UnknownRecoveryCell
+activity PreserveRefutedDeploymentBoundaries(RefutedBoundaryReceipt) -> RefutedBoundaryCell
+activity ReplaySemanticDeploymentPlan(ReplayReceipt) -> ReplayCell
+activity PreserveUtilityAuthorityBoundary(UtilityAuthorityReceipt) -> UtilityAuthorityCell
+
