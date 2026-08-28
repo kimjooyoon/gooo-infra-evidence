@@ -35,6 +35,17 @@
       "terraform_bindings": 1,
       "deployment_chain_cells": 4
     },
+    "opentofu_adoption": {
+      "observed": 0,
+      "total": 1,
+      "state": "UNKNOWN",
+      "next_operation": "PROVIDE_IMMUTABLE_OPENTOFU_JSON_RECEIPT",
+      "iac_engine_enum": [
+        "OPENTOFU",
+        "TERRAFORM",
+        "UNKNOWN"
+      ]
+    },
     "released_adoption": {"observed": 0, "total": 1},
     "exact_before_after_improvement": {"observed": 0, "total": 1}
   },

@@ -8,7 +8,8 @@ plan meaning: the eight typed Infra dependencies and the previously observed
 OpenAPI, Terraform, and deployment-chain bindings are projected as released
 declarations with evidence anchors. It does not execute Terraform or a
 provider, generate an OpenAPI server, deploy anything, probe a network, or
-claim semantic truth from a deterministic replay.
+claim semantic truth from a deterministic replay. It also does not import,
+vendor, build, initialize, plan, apply, or test OpenTofu.
 
 The implementation is a candidate only. Released adoption is `0/1 UNKNOWN`
 until a later release publishes and adopts the envelope. External utility is
@@ -42,6 +43,39 @@ authority is exactly:
 
 No required gate is created for Core, Interchange Spec, or any other project.
 The CI gate count for cross-project dependencies remains zero.
+
+## OpenTofu receipt boundary
+
+`INFRA_DEPENDENCY_SOURCE` keeps the released Terraform binding as Terraform:
+it records `iac_engine: "TERRAFORM"` and
+`reclassified_as_opentofu: false`. It is not an OpenTofu receipt, and the
+project does not rename the fixture to claim an OpenTofu adoption.
+
+OpenTofu is the preferred future candidate only at a stable JSON receipt
+boundary. This is based on OpenTofu main declaring Go `1.27` in its
+[module file](https://github.com/opentofu/opentofu/blob/main/go.mod), and its
+[v1 compatibility promise](https://opentofu.org/docs/language/v1-compatibility-promises/)
+that limits external automation compatibility to machine-readable JSON modes
+and exit statuses. A supplied OpenTofu receipt must declare an explicit
+`iac_engine` enum value (`OPENTOFU`, `TERRAFORM`, or `UNKNOWN`), plus
+`iac_engine_version`, immutable release id, binary digest, and
+`machine_readable_format_version`. Its engine is never inferred from
+`terraform_version`: the [JSON format](https://opentofu.org/docs/internals/json-format/)
+keeps that field name for compatibility. A submitted `UNKNOWN` engine or any
+unrecognized top-level receipt state is `REFUTED`/fail-closed.
+
+There is no immutable OpenTofu JSON receipt in this run. The product-specific
+observation is therefore `opentofu_adoption: 0/1 UNKNOWN`, with
+`next_operation: PROVIDE_IMMUTABLE_OPENTOFU_JSON_RECEIPT`. This observed
+absence closes the existing `INFRA_DEPENDENCY_SOURCE` fact without treating
+the absent adoption as zero evidence or relabeling Terraform.
+
+OpenTofu access is fixed at zero for `init`, `plan`, `apply`, `test`, provider,
+network, and cloud operations. This matters because
+[`tofu test`](https://opentofu.org/docs/cli/commands/test/) creates and then
+destroys real infrastructure by default. A future, separately opted-in fixture
+may consider `command = plan`, `refresh = false`, and mock providers; it is
+not part of this PR's conformance denominator or current-run counts.
 
 ## Infra-only denominator
 
@@ -78,17 +112,20 @@ evidence records, and eight resolutions all point to the immutable Infra plan
 asset and its JSON pointers. The public Infra replay is a source replay
 receipt; the workflow separately compares all eight envelope files.
 
-The workflow then creates four actual evaluator reports from the same bundle:
+The workflow then creates seven actual evaluator reports from the same bundle:
 
 1. A missing Core receipt yields `UNKNOWN` with `DIRECT_MISSING` at the
    missing activity and `DEPENDENCY_BLOCKED` on downstream cells, preserving
    the minimal dependency frontier.
-2. A valid Core `UNKNOWN` receipt yields `UNKNOWN` with all six coordinates:
-   `stage`, `step`, `reason`, `unknown_class`, `next_operation`, and
-   `blocked_by`.
+2. A valid Core `UNKNOWN` receipt and a focused downstream
+   `PRODUCT_PROJECTION` claim yield `UNKNOWN` with the minimal
+   `DEPENDENCY_BLOCKED` frontier and all six coordinates: `stage`, `step`,
+   `reason`, `unknown_class`, `next_operation`, and `blocked_by`.
 3. A malformed `UNKNOWN` receipt yields `REFUTED`.
 4. A `FIXED_POINT` receipt yields `REFUTED`.
 5. An unrecognized top-level decision yields `REFUTED`.
+6. A submitted `iac_engine: UNKNOWN` receipt yields `REFUTED`.
+7. A submitted unrecognized OpenTofu receipt state yields `REFUTED`.
 
 Only after those reports are hashed are their report digests merged into the
 facts file. The final normal evaluator then runs from the merged facts. This
@@ -101,6 +138,24 @@ coordinates are valid, and `blocked_by` is an array. Missing, malformed, or
 unrecognized Core receipts are never converted to zero; they remain
 `UNKNOWN` or `REFUTED` as specified by the report. Unobserved values are
 `null` or `UNOBSERVED`, not zero.
+
+## Execution and receipt accounting
+
+The runtime artifact separates current CI work from upstream release evidence.
+`ci_build_executions=0`, `ci_build_wall_ms=0`, and
+`ci_build_reason=NO_PRODUCT_BUILD_REQUIRED` state that this product does not
+need a build. The current bundle records separate conformance, scenario, and
+replay execution and wall-time fields. `current_subject_checks_executed` is
+the sum of those current-run checks; it is not an upstream test count.
+
+`upstream_test_receipts_available`, `upstream_test_receipts_reused`, and
+`stale_receipts` are distinct counters. A reusable upstream receipt is accepted
+only if its `subject_digest`, `contract_digest`, `toolchain_digest`, and
+`command_digest` all exactly equal the current values. Any mismatch is marked
+`STALE`/`UNKNOWN` and cannot be reused. This run has no upstream test receipt
+available or reused. `reexecutions_skipped_due_to_exact_receipt` may be
+counted later, but time saved and exact improvement remain `UNKNOWN` until
+before/after evidence exists.
 
 ## Acceptance targets
 

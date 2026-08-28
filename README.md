@@ -56,4 +56,18 @@ The v1 fixture does not execute Terraform, contact a cloud provider, deploy a
 service, or send a network probe. It verifies captured receipt relationships.
 Those live capabilities remain `NOT_CLAIMED`, not silently successful.
 
+## OpenTofu adoption boundary
+
+The released-domain envelope v2 candidate keeps its observed Terraform binding
+as `iac_engine: TERRAFORM`; it does not relabel that fixture as OpenTofu.
+OpenTofu adoption is `0/1 UNKNOWN` until an immutable, machine-readable JSON
+receipt supplies `iac_engine`, engine version, release id, binary digest, and
+format version. The `terraform_version` JSON key is not used to infer the
+engine. Unknown engines or unknown receipt states fail closed.
+
+No OpenTofu source import, vendor, build, `init`, `plan`, `apply`, `test`,
+provider, network, or cloud access is in this candidate. Although a future
+separately opted-in fixture may use `tofu test` with `command = plan`,
+`refresh = false`, and mock providers, it is not part of current conformance.
+
 See [the v1 RFC](docs/rfcs/infra-evidence-v1.md).
