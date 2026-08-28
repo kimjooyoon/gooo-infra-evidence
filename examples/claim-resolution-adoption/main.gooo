@@ -1,0 +1,18 @@
+package infraclaimresolutionadoption
+namespace infraclaimresolutionadoption
+
+entity InfraEvidenceClaim id "gooo://infra-evidence/claim-resolution-adoption/input"
+entity ClaimResolutionPrimitive id "gooo://infra-evidence/gooo.primitive.claim-resolution-tuple.v1"
+
+activity ObserveReleasedInfraEvidence(InfraEvidenceClaim) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=CLOSED;stage=NONE;step=NONE;reason=INFRA_EVIDENCE_V0_5_RELEASE_OBSERVED;unknown_class=NONE;next_operation=NONE"
+activity ObserveReleasedClaimPrimitive(InfraEvidenceClaim) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=CLOSED;stage=NONE;step=NONE;reason=CLAIM_RESOLUTION_V0_3_RELEASE_OBSERVED;unknown_class=NONE;next_operation=NONE"
+activity BindReleasedClosedClaim(InfraEvidenceClaim) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=CLOSED;stage=NONE;step=NONE;reason=INFRA_SERVICE_SYMBOL_EVIDENCE_CHAIN_CLOSED;unknown_class=NONE;next_operation=NONE"
+activity ResolveReleasedClosedClaim(InfraEvidenceClaim) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=CLOSED;stage=NONE;step=NONE;reason=INFRA_SERVICE_SYMBOL_EVIDENCE_CHAIN_CLOSED;unknown_class=NONE;next_operation=NONE"
+activity BindReleasedUnknownClaim(InfraEvidenceClaim) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=UNKNOWN;stage=INFRA_DECLARATION;step=PARSE_HCL_TERRAFORM_DECLARATION;reason=HCL_RESOURCE_VALUE_UNRESOLVED;unknown_class=CONTEXT_MISSING;next_operation=PROVIDE_HCL_EVALUATION_CONTEXT"
+activity PreserveReleasedUnknownClaim(InfraEvidenceClaim) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=UNKNOWN;stage=INFRA_DECLARATION;step=PARSE_HCL_TERRAFORM_DECLARATION;reason=HCL_RESOURCE_VALUE_UNRESOLVED;unknown_class=CONTEXT_MISSING;next_operation=PROVIDE_HCL_EVALUATION_CONTEXT"
+activity BindReleasedRefutedClaim(InfraEvidenceClaim) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=REFUTED;stage=DEPLOYMENT;step=BIND_DEPLOYMENT_OUTPUT;reason=ARTIFACT_IDENTITY_MISMATCH;unknown_class=NONE;next_operation=RESTORE_DEPLOYMENT_ARTIFACT_IDENTITY"
+activity PreserveReleasedRefutedClaim(InfraEvidenceClaim) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=REFUTED;stage=DEPLOYMENT;step=BIND_DEPLOYMENT_OUTPUT;reason=ARTIFACT_IDENTITY_MISMATCH;unknown_class=NONE;next_operation=RESTORE_DEPLOYMENT_ARTIFACT_IDENTITY"
+activity RejectIncompleteUnknownTuple(InfraEvidenceClaim) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=UNKNOWN;stage=INFRA_DECLARATION;step=PARSE_HCL_TERRAFORM_DECLARATION;reason=HCL_RESOURCE_VALUE_UNRESOLVED;unknown_class=NONE;next_operation=PROVIDE_HCL_EVALUATION_CONTEXT"
+activity RejectUnknownParentDecision(InfraEvidenceClaim) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=FIXED_POINT;stage=NONE;step=NONE;reason=UNRECOGNIZED_PARENT_DECISION;unknown_class=NONE;next_operation=NONE"
+activity ReplayClaimResolution(InfraEvidenceClaim) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=CLOSED;stage=NONE;step=NONE;reason=CLAIM_RESOLUTION_REPLAY_IDENTICAL;unknown_class=NONE;next_operation=NONE"
+activity ObserveReadOnlyEffect(InfraEvidenceClaim) -> ClaimResolutionPrimitive computes "claim.resolve:v1;state=CLOSED;stage=NONE;step=NONE;reason=READ_ONLY_ADOPTION_BOUNDARY_OBSERVED;unknown_class=NONE;next_operation=NONE"
