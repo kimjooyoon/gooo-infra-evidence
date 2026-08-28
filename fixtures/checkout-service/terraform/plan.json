@@ -1,0 +1,4 @@
+{
+  "format_version":"1.2","terraform_version":"captured-fixture","errored":false,
+  "resource_changes":[{"address":"example_service.checkout","mode":"managed","type":"example_service","name":"checkout","change":{"actions":["update"],"before":{"image_digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},"after":{"target":"prod/checkout","image_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"after_unknown":{}}}]
+}

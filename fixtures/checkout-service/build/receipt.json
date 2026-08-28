@@ -1,0 +1,5 @@
+{
+  "schema":"gooo/build-receipt/v1","builder":"captured-fixture-builder/v1",
+  "materials":[{"kind":"SERVICE_SOURCE","path":"service/main.go","digest_policy":"EVALUATOR_SHA256_REQUIRED"}],
+  "products":[{"kind":"OCI_ARTIFACT","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
+}

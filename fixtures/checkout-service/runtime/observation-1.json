@@ -1,0 +1,4 @@
+{
+  "schema":"gooo/runtime-observation/v1","sequence":1,"deployment_id":"svc-checkout-prod","artifact_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "operation_id":"getHealth","http_status":200,"response":{"status":"ok"}
+}

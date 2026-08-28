@@ -1,0 +1,4 @@
+{
+  "format_version":"1.0","terraform_version":"captured-fixture",
+  "values":{"root_module":{"resources":[{"address":"example_service.checkout","mode":"managed","type":"example_service","name":"checkout","values":{"id":"svc-checkout-prod","target":"prod/checkout","image_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]}}
+}

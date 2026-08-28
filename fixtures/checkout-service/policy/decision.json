@@ -1,0 +1,4 @@
+{
+  "schema":"gooo/policy-decision/v1","policy_id":"checkout-deployment-policy","bundle_digest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "enforcement":"mandatory","input":{"resource_address":"example_service.checkout","target":"prod/checkout","artifact_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"decision":"allow"
+}
