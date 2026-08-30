@@ -1,0 +1,41 @@
+{
+  "schema": "gooo/infra-evidence/opentofu-receipt-v1-denominator/v1",
+  "version": 1,
+  "target_cells": 12,
+  "proof_totals": [
+    {"proof_choice": "FOUNDATION", "total": 4},
+    {"proof_choice": "COHERENCE", "total": 4},
+    {"proof_choice": "REGRESSION", "total": 4}
+  ],
+  "indicator_totals": [
+    {"indicator_class": "DRIVER", "total": 4},
+    {"indicator_class": "OUTCOME", "total": 4},
+    {"indicator_class": "GUARDRAIL", "total": 4}
+  ],
+  "expected": {
+    "output_artifact_files": 7,
+    "normal_paths": 1,
+    "unknown_paths": 1,
+    "unknown_claims": 2,
+    "refuted_paths": 2,
+    "unknown_coordinate_fields_per_claim": 6,
+    "opentofu_adoption": {"observed": 1, "total": 1, "state": "CLOSED"},
+    "released_adoption": {"observed": 0, "total": 1, "state": "UNKNOWN"},
+    "external_utility": {"observed": 0, "total": 1, "state": "UNKNOWN"},
+    "exact_before_after_improvement": {"observed": 0, "total": 1, "state": "UNKNOWN"}
+  },
+  "cells": [
+    {"ordinal": 1, "id": "CORE_RELEASE", "activity": "ObserveReleasedGoooCore", "stage": "CORE_RELEASE", "step": "OBSERVE_RELEASED_GOOO_CORE", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "evidence_key": "core_release", "closed_reason": "RELEASED_GOOO_CORE_OBSERVED", "depends_on": []},
+    {"ordinal": 2, "id": "META_ACTIVITY_AUTHORITY", "activity": "BindOpenTofuReceiptActivities", "stage": "META_ACTIVITY", "step": "BIND_OPENTOFU_RECEIPT_ACTIVITIES", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "evidence_key": "meta_activity_authority", "closed_reason": "TWELVE_OPENTOFU_RECEIPT_ACTIVITIES_BOUND", "depends_on": ["CORE_RELEASE"]},
+    {"ordinal": 3, "id": "OPENTOFU_RELEASE", "activity": "ObservePinnedOpenTofuRelease", "stage": "OPENTOFU_RELEASE", "step": "OBSERVE_PINNED_OPENTOFU_RELEASE", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "evidence_key": "opentofu_release", "closed_reason": "PINNED_OPENTOFU_RELEASE_OBSERVED", "depends_on": ["META_ACTIVITY_AUTHORITY"]},
+    {"ordinal": 4, "id": "OPENTOFU_ASSET_LOCK", "activity": "BindOpenTofuAssetLock", "stage": "OPENTOFU_ASSET", "step": "BIND_OPENTOFU_ASSET_LOCK", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "evidence_key": "opentofu_asset_lock", "closed_reason": "OPENTOFU_ASSET_LOCK_BOUND", "depends_on": ["OPENTOFU_RELEASE"]},
+    {"ordinal": 5, "id": "BINARY_DIGEST", "activity": "VerifyOpenTofuBinaryDigest", "stage": "BINARY", "step": "VERIFY_OPENTOFU_BINARY_DIGEST", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "evidence_key": "binary_digest", "closed_reason": "OPENTOFU_BINARY_DIGEST_VERIFIED", "depends_on": ["OPENTOFU_ASSET_LOCK"]},
+    {"ordinal": 6, "id": "VERSION_JSON", "activity": "ExecuteOpenTofuVersionJSON", "stage": "VERSION_JSON", "step": "EXECUTE_OPENTOFU_VERSION_JSON", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "evidence_key": "version_json", "closed_reason": "OPENTOFU_VERSION_JSON_OBSERVED", "depends_on": ["BINARY_DIGEST"]},
+    {"ordinal": 7, "id": "ENGINE_IDENTITY", "activity": "BindExplicitOpenTofuIdentity", "stage": "ENGINE_IDENTITY", "step": "BIND_EXPLICIT_OPENTOFU_IDENTITY", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "evidence_key": "engine_identity", "closed_reason": "EXPLICIT_OPENTOFU_IDENTITY_BOUND", "depends_on": ["VERSION_JSON"]},
+    {"ordinal": 8, "id": "RECEIPT_PUBLICATION", "activity": "PublishOpenTofuReceipt", "stage": "RECEIPT", "step": "PUBLISH_OPENTOFU_RECEIPT", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "evidence_key": "receipt_publication", "closed_reason": "OPENTOFU_RECEIPT_PUBLISHED", "depends_on": ["ENGINE_IDENTITY"]},
+    {"ordinal": 9, "id": "DETERMINISTIC_REPLAY", "activity": "VerifyOpenTofuReceiptReplay", "stage": "REPLAY", "step": "VERIFY_OPENTOFU_RECEIPT_REPLAY", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "evidence_key": "deterministic_replay", "closed_reason": "OPENTOFU_RECEIPT_REPLAY_VERIFIED", "depends_on": ["RECEIPT_PUBLICATION"]},
+    {"ordinal": 10, "id": "UNKNOWN_CAUSALITY", "activity": "PreserveOpenTofuReceiptUnknown", "stage": "UNKNOWN", "step": "PRESERVE_OPENTOFU_RECEIPT_UNKNOWN", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "evidence_key": "unknown_causality", "closed_reason": "OPENTOFU_RECEIPT_UNKNOWN_PRESERVED", "depends_on": ["RECEIPT_PUBLICATION"]},
+    {"ordinal": 11, "id": "REFUTED_COUNTEREXAMPLES", "activity": "RefuteOpenTofuReceiptContradictions", "stage": "REFUTATION", "step": "REFUTE_OPENTOFU_RECEIPT_CONTRADICTIONS", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "evidence_key": "refuted_counterexamples", "closed_reason": "OPENTOFU_RECEIPT_CONTRADICTIONS_REFUTED", "depends_on": ["RECEIPT_PUBLICATION"]},
+    {"ordinal": 12, "id": "READ_ONLY_AUTHORITY", "activity": "PreserveOpenTofuReadOnlyAuthority", "stage": "AUTHORITY", "step": "PRESERVE_OPENTOFU_READ_ONLY_AUTHORITY", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "evidence_key": "read_only_authority", "closed_reason": "OPENTOFU_READ_ONLY_AUTHORITY_PRESERVED", "depends_on": ["DETERMINISTIC_REPLAY", "UNKNOWN_CAUSALITY", "REFUTED_COUNTEREXAMPLES"]}
+  ]
+}
