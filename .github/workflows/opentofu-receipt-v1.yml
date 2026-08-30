@@ -80,8 +80,9 @@ jobs:
           verify_release "$tofu_repo" "$(jq -r '.opentofu.tag' "$lock")" "$(jq -r '.opentofu.release_id' "$lock")" "$(jq -r '.opentofu.target_commit_sha' "$lock")" false "$WORK_DIR/tofu/release.json"
           download_asset "$tofu_repo" "$WORK_DIR/tofu/release.json" "$(jq -r '.opentofu.assets.linux.id' "$lock")" "$(jq -r '.opentofu.assets.linux.name' "$lock")" "$(jq -r '.opentofu.assets.linux.size' "$lock")" "$(jq -r '.opentofu.assets.linux.sha256' "$lock")" "$WORK_DIR/tofu/tofu.zip"
           download_asset "$tofu_repo" "$WORK_DIR/tofu/release.json" "$(jq -r '.opentofu.assets.checksums.id' "$lock")" "$(jq -r '.opentofu.assets.checksums.name' "$lock")" "$(jq -r '.opentofu.assets.checksums.size' "$lock")" "$(jq -r '.opentofu.assets.checksums.sha256' "$lock")" "$WORK_DIR/tofu/SHA256SUMS"
-          cp "$WORK_DIR/tofu/tofu.zip" "$WORK_DIR/tofu/$(jq -r '.opentofu.assets.linux.name' "$lock")"
-          (cd "$WORK_DIR/tofu" && rg "  $(jq -r '.opentofu.assets.linux.name' "$lock")$" SHA256SUMS | sha256sum -c -)
+          tofu_asset_name=$(jq -r '.opentofu.assets.linux.name' "$lock")
+          cp "$WORK_DIR/tofu/tofu.zip" "$WORK_DIR/tofu/$tofu_asset_name"
+          (cd "$WORK_DIR/tofu" && awk -v name="$tofu_asset_name" '$2==name {print}' SHA256SUMS | sha256sum -c -)
           unzip -q "$WORK_DIR/tofu/tofu.zip" -d "$WORK_DIR/tofu/bin"
           find "$WORK_DIR/tofu/bin" -type f -name tofu -exec chmod +x {} \;
           find "$WORK_DIR/tofu/bin" -type f -name tofu -print -quit > "$WORK_DIR/tofu-path"
