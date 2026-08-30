@@ -476,7 +476,7 @@ jobs:
           pre_manifest_files=$(find "$PUBLISH_DIR" -type f | wc -l | tr -d ' ')
           test "$pre_manifest_files" = 78
           cd "$PUBLISH_DIR"
-          find . -type f ! -name manifest.json -printf '%P\t' | sort | while IFS=$'\t' read -r file; do
+          find . -type f ! -name manifest.json -printf '%P\n' | sort | while IFS= read -r file; do
             jq -S -n --arg name "$file" --arg sha256 "$(sha256sum "$file" | awk '{print $1}')" \
               --argjson size "$(wc -c < "$file" | tr -d ' ')" '{name:$name,sha256:$sha256,size_bytes:$size}'
           done | jq -S -s '.' > "$WORK_DIR/manifest-files.json"
