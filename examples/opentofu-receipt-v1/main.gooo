@@ -1,0 +1,29 @@
+package opentofureceiptv1
+namespace opentofureceiptv1
+
+entity OpenTofuReceiptExperiment id "infra://opentofu-receipt-v1/experiment"
+entity CoreReleaseReceipt id "infra://opentofu-receipt-v1/core-release"
+entity MetaActivityAuthority id "infra://opentofu-receipt-v1/meta-activity-authority"
+entity OpenTofuReleaseReceipt id "infra://opentofu-receipt-v1/opentofu-release"
+entity OpenTofuAssetLock id "infra://opentofu-receipt-v1/opentofu-asset-lock"
+entity OpenTofuBinaryDigest id "infra://opentofu-receipt-v1/binary-digest"
+entity OpenTofuVersionJSON id "infra://opentofu-receipt-v1/version-json"
+entity ExplicitOpenTofuIdentity id "infra://opentofu-receipt-v1/engine-identity"
+entity PublishedOpenTofuReceipt id "infra://opentofu-receipt-v1/published-receipt"
+entity OpenTofuReplayReceipt id "infra://opentofu-receipt-v1/replay"
+entity OpenTofuUnknownReport id "infra://opentofu-receipt-v1/unknown"
+entity OpenTofuRefutationReports id "infra://opentofu-receipt-v1/refutations"
+entity OpenTofuReadOnlyAuthority id "infra://opentofu-receipt-v1/read-only-authority"
+
+activity ObserveReleasedGoooCore(OpenTofuReceiptExperiment) -> CoreReleaseReceipt
+activity BindOpenTofuReceiptActivities(CoreReleaseReceipt) -> MetaActivityAuthority
+activity ObservePinnedOpenTofuRelease(MetaActivityAuthority) -> OpenTofuReleaseReceipt
+activity BindOpenTofuAssetLock(OpenTofuReleaseReceipt) -> OpenTofuAssetLock
+activity VerifyOpenTofuBinaryDigest(OpenTofuAssetLock) -> OpenTofuBinaryDigest
+activity ExecuteOpenTofuVersionJSON(OpenTofuBinaryDigest) -> OpenTofuVersionJSON
+activity BindExplicitOpenTofuIdentity(OpenTofuVersionJSON) -> ExplicitOpenTofuIdentity
+activity PublishOpenTofuReceipt(ExplicitOpenTofuIdentity) -> PublishedOpenTofuReceipt
+activity VerifyOpenTofuReceiptReplay(PublishedOpenTofuReceipt) -> OpenTofuReplayReceipt
+activity PreserveOpenTofuReceiptUnknown(PublishedOpenTofuReceipt) -> OpenTofuUnknownReport
+activity RefuteOpenTofuReceiptContradictions(PublishedOpenTofuReceipt) -> OpenTofuRefutationReports
+activity PreserveOpenTofuReadOnlyAuthority(OpenTofuReplayReceipt, OpenTofuUnknownReport, OpenTofuRefutationReports) -> OpenTofuReadOnlyAuthority

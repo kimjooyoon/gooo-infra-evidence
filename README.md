@@ -74,3 +74,22 @@ separately opted-in fixture may use `tofu test` with `command = plan`,
 `refresh = false`, and mock providers, it is not part of current conformance.
 
 See [the v1 RFC](docs/rfcs/infra-evidence-v1.md).
+
+## OpenTofu receipt V1
+
+The additive OpenTofu receipt path closes one previously UNKNOWN integration
+boundary with an actual released CLI observation. CI digest-locks OpenTofu
+`v1.12.6`, executes `tofu version -json` twice, and binds an explicit
+`iac_engine: OPENTOFU` receipt to twelve Gooo meta activities. Engine identity
+is not inferred from the compatibility key `terraform_version`.
+
+The normal path is `12/12 CLOSED`, OpenTofu adoption is `1/1 CLOSED`, and the
+executed case corpus is exactly one normal, one UNKNOWN, and two REFUTED
+paths. The UNKNOWN path preserves both `DIRECT_MISSING` and
+`DEPENDENCY_BLOCKED` claims with six coordinates. CI writes exactly seven
+caller-owned artifacts and records version-command wall time, peak RSS,
+repository inventory, Go/Gooo physical lines, and zero init/plan/apply/test
+executions. Release adoption, independent external utility, and exact
+before/after improvement remain `0/1 UNKNOWN`.
+
+See [the OpenTofu receipt RFC](docs/rfcs/opentofu-receipt-v1.md).
