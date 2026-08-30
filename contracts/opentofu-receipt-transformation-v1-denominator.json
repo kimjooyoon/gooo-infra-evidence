@@ -1,0 +1,52 @@
+{
+  "schema": "gooo/infra-evidence/opentofu-receipt-v1-transformation-denominator/v1",
+  "version": 1,
+  "domain": "OpenTofu Receipt V1",
+  "target_cells": 12,
+  "proof_totals": [
+    {"proof_choice": "FOUNDATION", "total": 4},
+    {"proof_choice": "COHERENCE", "total": 4},
+    {"proof_choice": "REGRESSION", "total": 4}
+  ],
+  "indicator_totals": [
+    {"indicator_class": "DRIVER", "total": 4},
+    {"indicator_class": "OUTCOME", "total": 4},
+    {"indicator_class": "GUARDRAIL", "total": 4}
+  ],
+  "expected": {
+    "output_artifact_files": 79,
+    "normal_paths": 1,
+    "normal_replay_runs": 2,
+    "unknown_paths": 1,
+    "refuted_paths": 2,
+    "case_total": 12,
+    "unknown_coordinate_fields_per_claim": 6,
+    "consumer_adoption": {"observed": 1, "total": 1, "state": "CLOSED"},
+    "language_generalization": {"observed": 0, "total": 1, "state": "UNKNOWN"},
+    "external_user_utility": {"observed": 0, "total": 1, "state": "UNKNOWN"},
+    "exact_before_after_improvement": {"observed": 1, "total": 1, "state": "CLOSED"},
+    "producer_conformance_receipt_reuse": {"observed": 5, "total": 5, "state": "CLOSED"},
+    "released_test_receipt_reuse": {"observed": 0, "total": 1, "state": "UNKNOWN"}
+  },
+  "semantic_pair": {
+    "target_cell_id": "OPENTOFU_RECEIPT_UNKNOWN_TRACE",
+    "producer_target_cell_id": "UNKNOWN_TRACE",
+    "target_cell_transitions": 1,
+    "unrelated_cell_changes": 0,
+    "delta": {"closed": 1, "unknown": -1, "refuted": 0, "total": 0}
+  },
+  "cells": [
+    {"ordinal": 1, "id": "RELEASED_TRANSFORMATION_CORE", "activity": "ObserveReleasedTransformationCore", "stage": "CORE_RELEASE", "step": "OBSERVE_RELEASED_TRANSFORMATION_CORE", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "evidence_key": "released_core", "closed_reason": "RELEASED_TRANSFORMATION_CORE_OBSERVED", "depends_on": []},
+    {"ordinal": 2, "id": "TRANSFORMATION_ACTIVITY_AUTHORITY", "activity": "BindTransformationActivities", "stage": "META_ACTIVITY", "step": "BIND_TRANSFORMATION_ACTIVITIES", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "evidence_key": "activity_authority", "closed_reason": "TWELVE_OPENTOFU_TRANSFORMATION_ACTIVITIES_BOUND", "depends_on": ["RELEASED_TRANSFORMATION_CORE"]},
+    {"ordinal": 3, "id": "OPENTOFU_RECEIPT_PATTERN", "activity": "ObserveOpenTofuReceiptPattern", "stage": "PATTERN", "step": "OBSERVE_OPENTOFU_RECEIPT_PATTERN", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "evidence_key": "receipt_pattern", "closed_reason": "OPENTOFU_RECEIPT_PATTERN_OBSERVED", "depends_on": ["TRANSFORMATION_ACTIVITY_AUTHORITY"]},
+    {"ordinal": 4, "id": "OPENTOFU_RECEIPT_BASELINE", "activity": "PinOpenTofuReceiptBaseline", "stage": "BASELINE", "step": "PIN_OPENTOFU_RECEIPT_BASELINE", "proof_choice": "FOUNDATION", "indicator_class": "DRIVER", "evidence_key": "receipt_baseline", "closed_reason": "OPENTOFU_RECEIPT_BASELINE_PINNED", "depends_on": ["OPENTOFU_RECEIPT_PATTERN"]},
+    {"ordinal": 5, "id": "OPENTOFU_RECEIPT_CANDIDATE", "activity": "SelectMetaBoundOpenTofuReceiptCandidate", "stage": "SELECTION", "step": "SELECT_META_BOUND_OPENTOFU_RECEIPT_CANDIDATE", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "evidence_key": "receipt_candidate", "closed_reason": "META_BOUND_OPENTOFU_RECEIPT_CANDIDATE_SELECTED", "depends_on": ["TRANSFORMATION_ACTIVITY_AUTHORITY", "OPENTOFU_RECEIPT_PATTERN"]},
+    {"ordinal": 6, "id": "ISOLATED_OPENTOFU_RECEIPT", "activity": "ApplyCandidateToIsolatedOpenTofuReceipt", "stage": "APPLICATION", "step": "APPLY_CANDIDATE_TO_ISOLATED_OPENTOFU_RECEIPT", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "evidence_key": "isolated_receipt", "closed_reason": "CANDIDATE_APPLIED_TO_ISOLATED_OPENTOFU_RECEIPT", "depends_on": ["OPENTOFU_RECEIPT_CANDIDATE", "OPENTOFU_RECEIPT_BASELINE"]},
+    {"ordinal": 7, "id": "BEFORE_AFTER_EVALUATION", "activity": "EvaluateOpenTofuReceiptBeforeAfter", "stage": "EVALUATION", "step": "EVALUATE_OPENTOFU_RECEIPT_BEFORE_AND_AFTER", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "evidence_key": "before_after", "closed_reason": "OPENTOFU_RECEIPT_BEFORE_AFTER_EVALUATED", "depends_on": ["OPENTOFU_RECEIPT_BASELINE", "ISOLATED_OPENTOFU_RECEIPT"]},
+    {"ordinal": 8, "id": "EXACT_EFFECT_RECEIPT", "activity": "PublishExactOpenTofuReceiptEffect", "stage": "EFFECT", "step": "PUBLISH_EXACT_OPENTOFU_RECEIPT_EFFECT", "proof_choice": "COHERENCE", "indicator_class": "OUTCOME", "evidence_key": "exact_effect", "closed_reason": "EXACT_OPENTOFU_RECEIPT_EFFECT_PUBLISHED", "depends_on": ["BEFORE_AFTER_EVALUATION"]},
+    {"ordinal": 9, "id": "DENOMINATOR_PRESERVATION", "activity": "PreserveOpenTofuReceiptDenominator", "stage": "GUARDRAIL", "step": "PRESERVE_OPENTOFU_RECEIPT_DENOMINATOR", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "evidence_key": "denominator", "closed_reason": "OPENTOFU_RECEIPT_DENOMINATOR_PRESERVED", "depends_on": ["TRANSFORMATION_ACTIVITY_AUTHORITY", "OPENTOFU_RECEIPT_BASELINE", "ISOLATED_OPENTOFU_RECEIPT"]},
+    {"ordinal": 10, "id": "DETERMINISTIC_REPLAY", "activity": "VerifyOpenTofuReceiptTransformationReplay", "stage": "REPLAY", "step": "VERIFY_OPENTOFU_RECEIPT_TRANSFORMATION_REPLAY", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "evidence_key": "replay", "closed_reason": "OPENTOFU_RECEIPT_TRANSFORMATION_REPLAY_VERIFIED", "depends_on": ["EXACT_EFFECT_RECEIPT", "DENOMINATOR_PRESERVATION"]},
+    {"ordinal": 11, "id": "OPENTOFU_RECEIPT_UNKNOWN_TRACE", "activity": "PreserveOpenTofuReceiptUnknown", "stage": "UNKNOWN", "step": "PRESERVE_OPENTOFU_RECEIPT_UNKNOWN", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "evidence_key": "unknown", "closed_reason": "OPENTOFU_RECEIPT_UNKNOWN_TRACE_PRESERVED", "depends_on": ["TRANSFORMATION_ACTIVITY_AUTHORITY"]},
+    {"ordinal": 12, "id": "OPENTOFU_RECEIPT_COUNTEREXAMPLE", "activity": "RefuteOpenTofuReceiptCounterexample", "stage": "REFUTATION", "step": "REFUTE_OPENTOFU_RECEIPT_COUNTEREXAMPLE", "proof_choice": "REGRESSION", "indicator_class": "GUARDRAIL", "evidence_key": "counterexample", "closed_reason": "OPENTOFU_RECEIPT_COUNTEREXAMPLE_REFUTED", "depends_on": ["TRANSFORMATION_ACTIVITY_AUTHORITY"]}
+  ]
+}

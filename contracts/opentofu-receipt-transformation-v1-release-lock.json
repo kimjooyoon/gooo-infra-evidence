@@ -1,0 +1,49 @@
+{
+  "schema": "gooo/infra-evidence/opentofu-receipt-v1-transformation-release-lock/v1",
+  "core": {
+    "repository": "kimjooyoon/meta-ontology-go",
+    "tag": "v0.4.0-dev",
+    "release_id": 378565653,
+    "target_commit_sha": "57ac9ec486bbca69e447a8eba94e0ce3cd03ced0",
+    "prerelease": true,
+    "assets": {
+      "linux": {"id": 533959499, "name": "gooo-linux-amd64.tar.gz", "size": 7057764, "sha256": "3f6f34156dc959c4ae80711ff55cfbd135023fd57df673d28247e1894bf42f48"},
+      "checksums": {"id": 533959512, "name": "SHA256SUMS", "size": 270, "sha256": "58f6882f9dc056af40e3892fbf8c4a702ff7123c2c7ff4fd4d1c26350297fe12"}
+    }
+  },
+  "producer": {
+    "repository": "kimjooyoon/gooo-evidence-generator",
+    "tag": "v0.4.0-dev",
+    "release_id": 379239457,
+    "tag_object_sha": "82af4a42422c3651e6d1d27a262b8ee2392b5186",
+    "target_commit_sha": "c60dfed9c082d91b9b20e3f465b3a7f2c0f522a0",
+    "prerelease": true,
+    "assets": {
+      "transformation_effect": {"id": 536426088, "name": "gooo-evidence-generator-transformation-effect-v0.4.0-dev.zip", "size": 53113, "sha256": "cd15f867b90615133a6bb2ea2eb31a2745e1c9a730c6a80d37c1a6ca2cb1331d"},
+      "checksums": {"id": 536426089, "name": "SHA256SUMS", "size": 127, "sha256": "134c2f2509494a10d03a7567848dd43b645ff67815a8e4d40f7cfc088a65227c"}
+    },
+    "released_graph": {"path": "graph.json", "schema": "gooo-graph/v1"},
+    "released_checks": {"syntax_path": "syntax.json", "semantic_path": "semantic.json", "resolved_activity_path": "resolved-activities.json"}
+  },
+  "authority": {
+    "repository_writes": 0,
+    "local_test_executions": 0,
+    "cross_project_required_gates": 0,
+    "producer_source_checkouts": 0,
+    "core_source_checkouts": 0,
+    "producer_build_executions": 0,
+    "producer_test_executions": 0,
+    "go_build_executions": 0,
+    "go_test_executions": 0,
+    "opentofu_init_executions": 0,
+    "opentofu_validate_executions": 0,
+    "opentofu_plan_executions": 0,
+    "opentofu_provider_accesses": 0,
+    "opentofu_cloud_accesses": 0,
+    "opentofu_runtime_network_access_claimed": false,
+    "opentofu_runtime_network_access_observed": null,
+    "automatic_promotion": "FORBIDDEN",
+    "source_mutation": "FORBIDDEN",
+    "external_user_utility": "NOT_CLAIMED"
+  }
+}

@@ -93,3 +93,31 @@ executions. Release adoption, independent external utility, and exact
 before/after improvement remain `0/1 UNKNOWN`.
 
 See [the OpenTofu receipt RFC](docs/rfcs/opentofu-receipt-v1.md).
+
+## OpenTofu Receipt V1 transformation consumer
+
+This repository is the second independent domain consumer of the released
+Gooo transformation effect: `1/1 CLOSED`. It does not claim whole-language
+generalization (`0/1 UNKNOWN`). The producer is the immutable public release
+`kimjooyoon/gooo-evidence-generator@v0.4.0-dev`, tag target
+`c60dfed9c082d91b9b20e3f465b3a7f2c0f522a0`, and transformation-effect ZIP
+digest `sha256:cd15f867b90615133a6bb2ea2eb31a2745e1c9a730c6a80d37c1a6ca2cb1331d`.
+Producer source is never checked out; its five conformance receipts are
+digest-verified and reused.
+
+The actual OpenTofu Receipt V1 semantic pair is `11 CLOSED / 1 UNKNOWN / 0
+REFUTED` before and `12 CLOSED / 0 UNKNOWN / 0 REFUTED` after. Exactly one
+target cell, `OPENTOFU_RECEIPT_UNKNOWN_TRACE`, changes from UNKNOWN to CLOSED;
+unrelated cells and canonical digests are unchanged. The transformation
+consumer `.gooo` source declares exactly twelve activities, with
+FOUNDATION/COHERENCE/REGRESSION and DRIVER/OUTCOME/GUARDRAIL each fixed at
+`4/4`.
+
+CI preserves normal, missing-evidence, digest-valid effect-laundering, and
+REFUTED-over-UNKNOWN cases with `closed + unknown + refuted = 12` per case.
+Go 1.27 is used; Go build/test and OpenTofu init/validate/plan executions are
+zero. Producer conformance reuse is `5/5 CLOSED`, released test receipt reuse
+is `0/1 UNKNOWN`, saved build/test times are UNKNOWN without exact same-digest
+before/after pairs, and external user utility remains UNKNOWN.
+
+See [the transformation consumer RFC](docs/rfcs/opentofu-receipt-transformation-v1.md).
