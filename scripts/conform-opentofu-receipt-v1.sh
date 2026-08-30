@@ -9,9 +9,8 @@ fi
 publish=$1
 denominator=$2
 output=$3
-expected_before_manifest='["opentofu-adoption-receipt.json","opentofu-release-receipt.json","opentofu-report.md","opentofu-version-first.json","opentofu-version-replay.json"]'
 actual=$(find "$publish" -maxdepth 1 -type f -printf '%f\n' | sort | jq -R -s 'split("\n")|map(select(length>0))')
-test "$actual" = "$expected_before_manifest"
+jq -e -n --argjson actual "$actual" '$actual==["opentofu-adoption-receipt.json","opentofu-release-receipt.json","opentofu-report.md","opentofu-version-first.json","opentofu-version-replay.json"]' >/dev/null
 cmp "$publish/opentofu-version-first.json" "$publish/opentofu-version-replay.json"
 jq -e '.schema=="gooo/infra-evidence/opentofu-release-receipt/v1" and .receipt_state=="OBSERVED" and .iac_engine=="OPENTOFU" and .engine_inferred_from_json_key==false and .command_argv==["tofu","version","-json"]' "$publish/opentofu-release-receipt.json" >/dev/null
 jq -e --argjson cells "$(jq '.target_cells' "$denominator")" --argjson expected "$(jq '.expected' "$denominator")" '
