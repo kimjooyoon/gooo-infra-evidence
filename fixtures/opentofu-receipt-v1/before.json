@@ -1,0 +1,20 @@
+{
+  "schema": "gooo/infra-evidence/opentofu-receipt-v1-semantic-unit/v1",
+  "domain": "OpenTofu Receipt V1",
+  "id": "gooo://fixture/opentofu-receipt-v1/receipt-before/v1",
+  "denominator_id": "gooo://denominator/opentofu-receipt-v1/consumer/v1",
+  "cells": [
+    {"id": "RELEASED_TRANSFORMATION_CORE", "state": "CLOSED", "stage": null, "step": null, "reason": "RELEASED_TRANSFORMATION_CORE_OBSERVED", "unknown_class": null, "next_operation": "NONE", "blocked_by": []},
+    {"id": "TRANSFORMATION_ACTIVITY_AUTHORITY", "state": "CLOSED", "stage": null, "step": null, "reason": "TWELVE_OPENTOFU_TRANSFORMATION_ACTIVITIES_BOUND", "unknown_class": null, "next_operation": "NONE", "blocked_by": []},
+    {"id": "OPENTOFU_RECEIPT_PATTERN", "state": "CLOSED", "stage": null, "step": null, "reason": "OPENTOFU_RECEIPT_PATTERN_OBSERVED", "unknown_class": null, "next_operation": "NONE", "blocked_by": []},
+    {"id": "OPENTOFU_RECEIPT_BASELINE", "state": "CLOSED", "stage": null, "step": null, "reason": "OPENTOFU_RECEIPT_BASELINE_PINNED", "unknown_class": null, "next_operation": "NONE", "blocked_by": []},
+    {"id": "OPENTOFU_RECEIPT_CANDIDATE", "state": "CLOSED", "stage": null, "step": null, "reason": "META_BOUND_OPENTOFU_RECEIPT_CANDIDATE_SELECTED", "unknown_class": null, "next_operation": "NONE", "blocked_by": []},
+    {"id": "ISOLATED_OPENTOFU_RECEIPT", "state": "CLOSED", "stage": null, "step": null, "reason": "CANDIDATE_APPLIED_TO_ISOLATED_OPENTOFU_RECEIPT", "unknown_class": null, "next_operation": "NONE", "blocked_by": []},
+    {"id": "BEFORE_AFTER_EVALUATION", "state": "CLOSED", "stage": null, "step": null, "reason": "OPENTOFU_RECEIPT_BEFORE_AFTER_EVALUATED", "unknown_class": null, "next_operation": "NONE", "blocked_by": []},
+    {"id": "EXACT_EFFECT_RECEIPT", "state": "CLOSED", "stage": null, "step": null, "reason": "EXACT_OPENTOFU_RECEIPT_EFFECT_PUBLISHED", "unknown_class": null, "next_operation": "NONE", "blocked_by": []},
+    {"id": "DENOMINATOR_PRESERVATION", "state": "CLOSED", "stage": null, "step": null, "reason": "OPENTOFU_RECEIPT_DENOMINATOR_PRESERVED", "unknown_class": null, "next_operation": "NONE", "blocked_by": []},
+    {"id": "DETERMINISTIC_REPLAY", "state": "CLOSED", "stage": null, "step": null, "reason": "OPENTOFU_RECEIPT_TRANSFORMATION_REPLAY_VERIFIED", "unknown_class": null, "next_operation": "NONE", "blocked_by": []},
+    {"id": "OPENTOFU_RECEIPT_UNKNOWN_TRACE", "state": "UNKNOWN", "stage": "RECEIPT", "step": "PRESERVE_OPENTOFU_RECEIPT_UNKNOWN", "reason": "OPENTOFU_RECEIPT_EVIDENCE_MISSING", "unknown_class": "DIRECT_MISSING", "next_operation": "PROVIDE_IMMUTABLE_OPENTOFU_JSON_RECEIPT", "blocked_by": []},
+    {"id": "OPENTOFU_RECEIPT_COUNTEREXAMPLE", "state": "CLOSED", "stage": null, "step": null, "reason": "OPENTOFU_RECEIPT_COUNTEREXAMPLE_REFUTED", "unknown_class": null, "next_operation": "NONE", "blocked_by": []}
+  ]
+}

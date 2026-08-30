@@ -56,40 +56,29 @@ The v1 fixture does not execute Terraform, contact a cloud provider, deploy a
 service, or send a network probe. It verifies captured receipt relationships.
 Those live capabilities remain `NOT_CLAIMED`, not silently successful.
 
-## OpenTofu adoption boundary
+## OpenTofu Receipt V1 transformation consumer
 
-The released-domain envelope v2 candidate keeps its observed Terraform binding
-as `iac_engine: TERRAFORM`; it does not relabel that fixture as OpenTofu.
-OpenTofu adoption is `0/1 UNKNOWN` until an immutable, machine-readable JSON
-receipt supplies `iac_engine`, engine version, release id, binary digest, and
-format version. `iac_engine` is explicitly one of `OPENTOFU`, `TERRAFORM`, or
-`UNKNOWN`; the `terraform_version` JSON key is not used to infer the engine.
-With no actual OpenTofu receipt, the only next operation is
-`PROVIDE_IMMUTABLE_OPENTOFU_JSON_RECEIPT`. Unknown engines or unknown receipt
-states fail closed.
+This repository is the second independent domain consumer of the released
+Gooo transformation effect: `1/1 CLOSED`. It does not claim whole-language
+generalization (`0/1 UNKNOWN`). The producer is the immutable public release
+`kimjooyoon/gooo-evidence-generator@v0.4.0-dev`, tag target
+`c60dfed9c082d91b9b20e3f465b3a7f2c0f522a0`, and transformation-effect ZIP
+digest `sha256:cd15f867b90615133a6bb2ea2eb31a2745e1c9a730c6a80d37c1a6ca2cb1331d`.
+Producer source is never checked out; its five conformance receipts are
+digest-verified and reused.
 
-No OpenTofu source import, vendor, build, `init`, `plan`, `apply`, `test`,
-provider, network, or cloud access is in this candidate. Although a future
-separately opted-in fixture may use `tofu test` with `command = plan`,
-`refresh = false`, and mock providers, it is not part of current conformance.
+The actual OpenTofu Receipt V1 semantic pair is `11 CLOSED / 1 UNKNOWN / 0
+REFUTED` before and `12 CLOSED / 0 UNKNOWN / 0 REFUTED` after. Exactly one
+target cell, `OPENTOFU_RECEIPT_UNKNOWN_TRACE`, changes from UNKNOWN to CLOSED;
+unrelated cells and canonical digests are unchanged. The consumer `.gooo`
+source declares exactly twelve activities, with FOUNDATION/COHERENCE/REGRESSION
+and DRIVER/OUTCOME/GUARDRAIL each fixed at `4/4`.
 
-See [the v1 RFC](docs/rfcs/infra-evidence-v1.md).
+CI preserves normal, missing-evidence, digest-valid effect-laundering, and
+REFUTED-over-UNKNOWN cases with `closed + unknown + refuted = 12` per case.
+Go 1.27 is used; Go build/test and OpenTofu init/validate/plan executions are
+zero. Producer conformance reuse is `5/5 CLOSED`, released test receipt reuse
+is `0/1 UNKNOWN`, saved build/test times are UNKNOWN without exact same-digest
+before/after pairs, and external user utility remains UNKNOWN.
 
-## OpenTofu receipt V1
-
-The additive OpenTofu receipt path closes one previously UNKNOWN integration
-boundary with an actual released CLI observation. CI digest-locks OpenTofu
-`v1.12.6`, executes `tofu version -json` twice, and binds an explicit
-`iac_engine: OPENTOFU` receipt to twelve Gooo meta activities. Engine identity
-is not inferred from the compatibility key `terraform_version`.
-
-The normal path is `12/12 CLOSED`, OpenTofu adoption is `1/1 CLOSED`, and the
-executed case corpus is exactly one normal, one UNKNOWN, and two REFUTED
-paths. The UNKNOWN path preserves both `DIRECT_MISSING` and
-`DEPENDENCY_BLOCKED` claims with six coordinates. CI writes exactly seven
-caller-owned artifacts and records version-command wall time, peak RSS,
-repository inventory, Go/Gooo physical lines, and zero init/plan/apply/test
-executions. Release adoption, independent external utility, and exact
-before/after improvement remain `0/1 UNKNOWN`.
-
-See [the OpenTofu receipt RFC](docs/rfcs/opentofu-receipt-v1.md).
+See [the OpenTofu Receipt V1 transformation RFC](docs/rfcs/opentofu-receipt-v1.md).
