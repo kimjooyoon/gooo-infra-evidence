@@ -482,7 +482,7 @@ jobs:
           done | jq -S -s '.' > "$WORK_DIR/manifest-files.json"
           jq -S -n --arg subject "$SUBJECT_SHA" --slurpfile files "$WORK_DIR/manifest-files.json" \
             '{schema:"gooo/infra-evidence/opentofu-receipt-v1-transformation-manifest/v1",subject_sha:$subject,output_artifact_files:79,
-              expected_files:(([$files[0][]|.name]+["manifest.json"])|sort),files:$files[0]}'
+            expected_files:(([$files[0][]|.name]+["manifest.json"])|sort),files:$files[0]}' \
             > "$PUBLISH_DIR/manifest.json"
           actual=$(find "$PUBLISH_DIR" -type f -printf '%P\n' | sort | jq -R -s 'split("\n")|map(select(length>0))')
           jq -e --argjson actual "$actual" '.output_artifact_files==79 and .expected_files==$actual and (.files|length)==78' "$PUBLISH_DIR/manifest.json" >/dev/null
