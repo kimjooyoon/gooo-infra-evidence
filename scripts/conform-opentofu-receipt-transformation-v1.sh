@@ -27,8 +27,8 @@ test "$(find "$publish/cases" -type f | wc -l | tr -d ' ')" = 5
 test "$(find "$publish" -maxdepth 1 -type f | wc -l | tr -d ' ')" = 2
 test "$(find "$publish" -type f | wc -l | tr -d ' ')" = 77
 
-for scenario in normal-a normal-b missing-pattern unauthorized-operation refuted-over-unknown; do
-  receipt="$producer/conform-$scenario.json"
+while IFS=$'\t' read -r scenario_dir scenario; do
+  receipt="$producer/conform-$scenario_dir.json"
   test -s "$receipt"
   jq -e --arg scenario "$scenario" '
     .schema=="gooo/evidence-generator/transformation-conformance/v1" and
@@ -39,13 +39,19 @@ for scenario in normal-a normal-b missing-pattern unauthorized-operation refuted
     (.effect.before.closed+.effect.before.unknown+.effect.before.refuted)==12 and
     (.effect.after.closed+.effect.after.unknown+.effect.after.refuted)==12
   ' "$receipt" >/dev/null
-done
+done <<'SCENARIOS'
+normal-a	normal
+normal-b	normal
+missing-pattern	missing-pattern
+unauthorized-operation	unauthorized-operation
+refuted-over-unknown	refuted-over-unknown
+SCENARIOS
 
-for scenario in normal-a normal-b missing-pattern unauthorized-operation refuted-over-unknown; do
-  manifest="$producer/$scenario/manifest.json"
+for scenario_dir in normal-a normal-b missing-pattern unauthorized-operation refuted-over-unknown; do
+  manifest="$producer/$scenario_dir/manifest.json"
   test -s "$manifest"
   while IFS=$'\t' read -r path expected; do
-    test "$(sha256sum "$producer/$scenario/$path" | awk '{print $1}')" = "$expected"
+    test "$(sha256sum "$producer/$scenario_dir/$path" | awk '{print $1}')" = "$expected"
   done < <(jq -r '.files[]|[.path,.sha256]|@tsv' "$manifest")
 done
 

@@ -146,7 +146,7 @@ jobs:
             ([.activity_resolution_observation.entries[].activity]|unique|length)==12 and
             all(.activity_resolution_observation.entries[];.receipt.decision=="CLOSED" and .receipt.occurrences==1 and .receipt.claim.state=="CLOSED")
           ' "$producer_dir/resolved-activities.json" >/dev/null
-          for scenario in normal-a normal-b missing-pattern unauthorized-operation refuted-over-unknown; do
+          while IFS=$'\t' read -r scenario_dir scenario; do
             jq -e --arg scenario "$scenario" --arg target "$(jq -r '.producer.target_commit_sha' "$lock")" '
               .schema=="gooo/evidence-generator/transformation-conformance/v1" and
               .decision=="CONFORMANT" and .scenario==$scenario and .subject_sha==$target and
@@ -154,11 +154,17 @@ jobs:
               .effect.before.total==12 and .effect.after.total==12 and
               (.effect.before.closed+.effect.before.unknown+.effect.before.refuted)==12 and
               (.effect.after.closed+.effect.after.unknown+.effect.after.refuted)==12
-            ' "$producer_dir/conform-$scenario.json" >/dev/null
+            ' "$producer_dir/conform-$scenario_dir.json" >/dev/null
             while IFS=$'\t' read -r file expected; do
-              test "$(sha256sum "$producer_dir/$scenario/$file" | awk '{print $1}')" = "$expected"
-            done < <(jq -r '.files[]|[.path,.sha256]|@tsv' "$producer_dir/$scenario/manifest.json")
-          done
+              test "$(sha256sum "$producer_dir/$scenario_dir/$file" | awk '{print $1}')" = "$expected"
+            done < <(jq -r '.files[]|[.path,.sha256]|@tsv' "$producer_dir/$scenario_dir/manifest.json")
+          done <<'SCENARIOS'
+          normal-a	normal
+          normal-b	normal
+          missing-pattern	missing-pattern
+          unauthorized-operation	unauthorized-operation
+          refuted-over-unknown	refuted-over-unknown
+          SCENARIOS
 
       - name: Generate released Core graph and checks for the consumer
         shell: bash
