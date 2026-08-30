@@ -1,4 +1,4 @@
-name: OpenTofu Receipt V1 transformation consumer
+name: OpenTofu Receipt V1
 
 on:
   pull_request:
@@ -11,496 +11,245 @@ permissions:
   contents: read
 
 jobs:
-  opentofu-receipt-v1-consumer:
+  opentofu-receipt-v1:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
       SUBJECT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      WORK_DIR: /tmp/gooo-opentofu-receipt-v1-consumer
-      PUBLISH_DIR: /tmp/gooo-opentofu-receipt-v1-consumer-publish
-
+      WORK_DIR: /tmp/gooo-opentofu-receipt-v1
+      PUBLISH_DIR: /tmp/gooo-opentofu-receipt-v1-publish
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Use Go 1.27
-        uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: 1.27.x
           check-latest: true
 
-      - name: Acquire immutable Core and producer release artifacts
+      - name: Acquire digest-locked released CLIs
         shell: bash
         run: |
           set -euo pipefail
           rm -rf "$WORK_DIR" "$PUBLISH_DIR"
-          mkdir -p "$WORK_DIR/core/bin" "$WORK_DIR/producer-root" "$WORK_DIR/resolutions" "$PUBLISH_DIR/producer" "$PUBLISH_DIR/consumer" "$PUBLISH_DIR/cases"
+          mkdir -p "$WORK_DIR/core/bin" "$WORK_DIR/tofu/bin" "$WORK_DIR/cases" "$WORK_DIR/resolutions" "$PUBLISH_DIR"
           lock=contracts/opentofu-receipt-v1-release-lock.json
           denominator=contracts/opentofu-receipt-v1-denominator.json
-          jq -e '
-            .schema=="gooo/infra-evidence/opentofu-receipt-v1-transformation-release-lock/v1" and
-            .authority.repository_writes==0 and .authority.local_test_executions==0 and
-            .authority.producer_source_checkouts==0 and .authority.core_source_checkouts==0 and
-            .authority.go_build_executions==0 and .authority.go_test_executions==0 and
-            .authority.opentofu_init_executions==0 and .authority.opentofu_validate_executions==0 and
-            .authority.opentofu_plan_executions==0
-          ' "$lock" >/dev/null
-          jq -e '
-            .schema=="gooo/infra-evidence/opentofu-receipt-v1-transformation-denominator/v1" and
-            .target_cells==12 and (.cells|length)==12 and ([.cells[].id]|unique|length)==12 and
-            ([.cells[].activity]|unique|length)==12 and
-            (.proof_totals|map(.total)|add)==12 and (.indicator_totals|map(.total)|add)==12
-          ' "$denominator" >/dev/null
-          git status --porcelain=v1 -z --untracked-files=all > "$WORK_DIR/repository-before.bin"
+          jq -e '.schema=="gooo/infra-evidence/opentofu-receipt-v1-release-lock/v1" and .authority.repository_writes==0 and .authority.local_test_executions==0 and .authority.cross_project_required_gates==0' "$lock" >/dev/null
+          jq -e '.schema=="gooo/infra-evidence/opentofu-receipt-v1-denominator/v1" and .target_cells==12 and (.cells|length)==12 and ([.cells[].id]|unique|length)==12 and ([.cells[].activity]|unique|length)==12' "$denominator" >/dev/null
+          snapshot() {
+            find . -path './.git' -prune -o -type f ! -path './README.md' -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}'
+          }
+          snapshot > "$WORK_DIR/repository-before.sha256"
 
           verify_tag_commit() {
-            local repository=$1 tag=$2 expected_tag_object=$3 expected_commit=$4
-            local tag_object commit
-            tag_object=$(git ls-remote "https://github.com/$repository.git" "refs/tags/$tag" | awk 'NR==1{print $1}')
-            commit=$(git ls-remote "https://github.com/$repository.git" "refs/tags/$tag^{}" | awk 'NR==1{print $1}')
-            if [ -z "$commit" ]; then
-              commit="$tag_object"
+            local repository=$1 tag=$2 expected=$3
+            local resolved
+            resolved=$(git ls-remote "https://github.com/$repository.git" "refs/tags/$tag^{}" | awk 'NR==1{print $1}')
+            if [ -z "$resolved" ]; then
+              resolved=$(git ls-remote "https://github.com/$repository.git" "refs/tags/$tag" | awk 'NR==1{print $1}')
             fi
-            if [ -n "$expected_tag_object" ]; then
-              test "$tag_object" = "$expected_tag_object"
-            fi
-            test "$commit" = "$expected_commit"
+            test "$resolved" = "$expected"
           }
-
           verify_release() {
-            local repository=$1 tag=$2 release_id=$3 expected_prerelease=$4 tag_object=$5 target_commit=$6 output=$7
+            local repository=$1 tag=$2 release_id=$3 target=$4 prerelease=$5 output=$6
             gh api "repos/$repository/releases/tags/$tag" > "$output"
-            jq -e --arg tag "$tag" --argjson id "$release_id" --argjson prerelease "$expected_prerelease" \
-              '.tag_name==$tag and .id==$id and .draft==false and .prerelease==$prerelease' "$output" >/dev/null
-            verify_tag_commit "$repository" "$tag" "$tag_object" "$target_commit"
+            jq -e --arg tag "$tag" --argjson id "$release_id" --argjson prerelease "$prerelease" '.tag_name==$tag and .id==$id and .prerelease==$prerelease' "$output" >/dev/null
+            verify_tag_commit "$repository" "$tag" "$target"
           }
-
           download_asset() {
             local repository=$1 release_json=$2 asset_id=$3 asset_name=$4 expected_size=$5 expected_sha=$6 output=$7
-            jq -e --argjson id "$asset_id" --arg name "$asset_name" --argjson size "$expected_size" --arg digest "sha256:$expected_sha" \
-              '.assets[]|select(.id==$id and .name==$name and .size==$size and .digest==$digest)' "$release_json" >/dev/null
+            jq -e --argjson id "$asset_id" --arg name "$asset_name" --argjson size "$expected_size" --arg digest "sha256:$expected_sha" '.assets[]|select(.id==$id)|.name==$name and .size==$size and .digest==$digest' "$release_json" >/dev/null
             gh api -H 'Accept: application/octet-stream' "repos/$repository/releases/assets/$asset_id" > "$output"
             test "$(wc -c < "$output" | tr -d ' ')" = "$expected_size"
             test "$(sha256sum "$output" | awk '{print $1}')" = "$expected_sha"
           }
 
           core_repo=$(jq -r '.core.repository' "$lock")
-          core_tag=$(jq -r '.core.tag' "$lock")
-          verify_release "$core_repo" "$core_tag" "$(jq -r '.core.release_id' "$lock")" true \
-            "" "$(jq -r '.core.target_commit_sha' "$lock")" "$WORK_DIR/core/release.json"
-          download_asset "$core_repo" "$WORK_DIR/core/release.json" \
-            "$(jq -r '.core.assets.linux.id' "$lock")" "$(jq -r '.core.assets.linux.name' "$lock")" \
-            "$(jq -r '.core.assets.linux.size' "$lock")" "$(jq -r '.core.assets.linux.sha256' "$lock")" "$WORK_DIR/core/gooo.tar.gz"
-          download_asset "$core_repo" "$WORK_DIR/core/release.json" \
-            "$(jq -r '.core.assets.checksums.id' "$lock")" "$(jq -r '.core.assets.checksums.name' "$lock")" \
-            "$(jq -r '.core.assets.checksums.size' "$lock")" "$(jq -r '.core.assets.checksums.sha256' "$lock")" "$WORK_DIR/core/SHA256SUMS"
-          core_name=$(jq -r '.core.assets.linux.name' "$lock")
-          test "$(awk -v name="$core_name" '$2==name {print $1}' "$WORK_DIR/core/SHA256SUMS")" = "$(sha256sum "$WORK_DIR/core/gooo.tar.gz" | awk '{print $1}')"
-          tar -xzf "$WORK_DIR/core/gooo.tar.gz" -C "$WORK_DIR/core/bin"
+          verify_release "$core_repo" "$(jq -r '.core.tag' "$lock")" "$(jq -r '.core.release_id' "$lock")" "$(jq -r '.core.target_commit_sha' "$lock")" true "$WORK_DIR/core/release.json"
+          download_asset "$core_repo" "$WORK_DIR/core/release.json" "$(jq -r '.core.assets.linux.id' "$lock")" "$(jq -r '.core.assets.linux.name' "$lock")" "$(jq -r '.core.assets.linux.size' "$lock")" "$(jq -r '.core.assets.linux.sha256' "$lock")" "$WORK_DIR/core/gooo-linux-amd64.tar.gz"
+          download_asset "$core_repo" "$WORK_DIR/core/release.json" "$(jq -r '.core.assets.checksums.id' "$lock")" "$(jq -r '.core.assets.checksums.name' "$lock")" "$(jq -r '.core.assets.checksums.size' "$lock")" "$(jq -r '.core.assets.checksums.sha256' "$lock")" "$WORK_DIR/core/SHA256SUMS"
+          (cd "$WORK_DIR/core" && sha256sum -c SHA256SUMS --ignore-missing)
+          tar -xzf "$WORK_DIR/core/gooo-linux-amd64.tar.gz" -C "$WORK_DIR/core/bin"
           find "$WORK_DIR/core/bin" -type f -name gooo -exec chmod +x {} \;
           find "$WORK_DIR/core/bin" -type f -name gooo -print -quit > "$WORK_DIR/gooo-path"
           test -s "$WORK_DIR/gooo-path"
-          cp "$WORK_DIR/core/release.json" "$PUBLISH_DIR/consumer/core-release.json"
-          cp "$WORK_DIR/core/SHA256SUMS" "$PUBLISH_DIR/consumer/core-SHA256SUMS"
 
-          producer_repo=$(jq -r '.producer.repository' "$lock")
-          producer_tag=$(jq -r '.producer.tag' "$lock")
-          verify_release "$producer_repo" "$producer_tag" "$(jq -r '.producer.release_id' "$lock")" true \
-            "$(jq -r '.producer.tag_object_sha' "$lock")" "$(jq -r '.producer.target_commit_sha' "$lock")" "$WORK_DIR/producer-release.json"
-          download_asset "$producer_repo" "$WORK_DIR/producer-release.json" \
-            "$(jq -r '.producer.assets.transformation_effect.id' "$lock")" "$(jq -r '.producer.assets.transformation_effect.name' "$lock")" \
-            "$(jq -r '.producer.assets.transformation_effect.size' "$lock")" "$(jq -r '.producer.assets.transformation_effect.sha256' "$lock")" "$WORK_DIR/producer-effect.zip"
-          download_asset "$producer_repo" "$WORK_DIR/producer-release.json" \
-            "$(jq -r '.producer.assets.checksums.id' "$lock")" "$(jq -r '.producer.assets.checksums.name' "$lock")" \
-            "$(jq -r '.producer.assets.checksums.size' "$lock")" "$(jq -r '.producer.assets.checksums.sha256' "$lock")" "$WORK_DIR/producer-SHA256SUMS"
-          producer_name=$(jq -r '.producer.assets.transformation_effect.name' "$lock")
-          test "$(awk -v name="$producer_name" '$2==name {print $1}' "$WORK_DIR/producer-SHA256SUMS")" = "$(sha256sum "$WORK_DIR/producer-effect.zip" | awk '{print $1}')"
-          unzip -q "$WORK_DIR/producer-effect.zip" -d "$WORK_DIR/producer-root"
-          test "$(find "$WORK_DIR/producer-root" -type f | wc -l | tr -d ' ')" = 56
-          cp "$WORK_DIR/producer-release.json" "$PUBLISH_DIR/producer/release.json"
-          cp "$WORK_DIR/producer-SHA256SUMS" "$PUBLISH_DIR/producer/SHA256SUMS"
-          cp "$WORK_DIR/producer-effect.zip" "$PUBLISH_DIR/producer/$producer_name"
-          cp -R "$WORK_DIR/producer-root/." "$PUBLISH_DIR/producer/"
+          tofu_repo=$(jq -r '.opentofu.repository' "$lock")
+          verify_release "$tofu_repo" "$(jq -r '.opentofu.tag' "$lock")" "$(jq -r '.opentofu.release_id' "$lock")" "$(jq -r '.opentofu.target_commit_sha' "$lock")" false "$WORK_DIR/tofu/release.json"
+          download_asset "$tofu_repo" "$WORK_DIR/tofu/release.json" "$(jq -r '.opentofu.assets.linux.id' "$lock")" "$(jq -r '.opentofu.assets.linux.name' "$lock")" "$(jq -r '.opentofu.assets.linux.size' "$lock")" "$(jq -r '.opentofu.assets.linux.sha256' "$lock")" "$WORK_DIR/tofu/tofu.zip"
+          download_asset "$tofu_repo" "$WORK_DIR/tofu/release.json" "$(jq -r '.opentofu.assets.checksums.id' "$lock")" "$(jq -r '.opentofu.assets.checksums.name' "$lock")" "$(jq -r '.opentofu.assets.checksums.size' "$lock")" "$(jq -r '.opentofu.assets.checksums.sha256' "$lock")" "$WORK_DIR/tofu/SHA256SUMS"
+          tofu_asset_name=$(jq -r '.opentofu.assets.linux.name' "$lock")
+          cp "$WORK_DIR/tofu/tofu.zip" "$WORK_DIR/tofu/$tofu_asset_name"
+          (cd "$WORK_DIR/tofu" && awk -v name="$tofu_asset_name" '$2==name {print}' SHA256SUMS | sha256sum -c -)
+          unzip -q "$WORK_DIR/tofu/tofu.zip" -d "$WORK_DIR/tofu/bin"
+          find "$WORK_DIR/tofu/bin" -type f -name tofu -exec chmod +x {} \;
+          find "$WORK_DIR/tofu/bin" -type f -name tofu -print -quit > "$WORK_DIR/tofu-path"
+          test -s "$WORK_DIR/tofu-path"
 
-          cp examples/opentofu-receipt-v1/main.gooo "$PUBLISH_DIR/consumer/main.gooo"
-          cp fixtures/opentofu-receipt-v1/before.json "$PUBLISH_DIR/consumer/before.json"
-          cp fixtures/opentofu-receipt-v1/after.json "$PUBLISH_DIR/consumer/after.json"
-
-          producer_dir="$PUBLISH_DIR/producer"
-          jq -e --arg target "$(jq -r '.producer.target_commit_sha' "$lock")" '
-            .schema=="gooo/evidence-generator/transformation-runtime/v1" and .subject_sha==$target and
-            .toolchain.go=="go1.27.0" and .toolchain.released_gooo_reuse==1 and
-            .toolchain.released_test_receipt_reuse.state=="UNKNOWN" and
-            .repository.writes==0 and .executions.local_test==0 and .executions.go_build==0 and .executions.go_test==0
-          ' "$producer_dir/runtime.json" >/dev/null
-          jq -e '
-            .schema_version=="gooo-graph/v1" and .ir.status=="available" and .evidence.status=="missing" and
-            ([.nodes[]|select(.kind=="Activity")]|length)==12 and
-            ([.nodes[]|select(.kind=="Activity")|.name]|unique|length)==12
-          ' "$producer_dir/graph.json" >/dev/null
-          jq -e '.schema_version=="gooo/diagnostics/v1" and .status=="ok" and .diagnostics==[]' "$producer_dir/syntax.json" >/dev/null
-          jq -e '.schema_version=="gooo/diagnostics/v1" and .status=="ok" and .diagnostics==[]' "$producer_dir/semantic.json" >/dev/null
-          jq -e '
-            (.activity_resolution_observation.entries|length)==12 and
-            ([.activity_resolution_observation.entries[].activity]|unique|length)==12 and
-            all(.activity_resolution_observation.entries[];.receipt.decision=="CLOSED" and .receipt.occurrences==1 and .receipt.claim.state=="CLOSED")
-          ' "$producer_dir/resolved-activities.json" >/dev/null
-          for scenario in normal-a normal-b missing-pattern unauthorized-operation refuted-over-unknown; do
-            jq -e --arg scenario "$scenario" --arg target "$(jq -r '.producer.target_commit_sha' "$lock")" '
-              .schema=="gooo/evidence-generator/transformation-conformance/v1" and
-              .decision=="CONFORMANT" and .scenario==$scenario and .subject_sha==$target and
-              .manifest.total==8 and .manifest.verified==8 and .effect.internal_replay_equal==true and
-              .effect.before.total==12 and .effect.after.total==12 and
-              (.effect.before.closed+.effect.before.unknown+.effect.before.refuted)==12 and
-              (.effect.after.closed+.effect.after.unknown+.effect.after.refuted)==12
-            ' "$producer_dir/conform-$scenario.json" >/dev/null
-            while IFS=$'\t' read -r file expected; do
-              test "$(sha256sum "$producer_dir/$scenario/$file" | awk '{print $1}')" = "$expected"
-            done < <(jq -r '.files[]|[.path,.sha256]|@tsv' "$producer_dir/$scenario/manifest.json")
-          done
-
-      - name: Generate released Core graph and checks for the consumer
+      - name: Bind twelve Gooo meta activities
         shell: bash
         run: |
           set -euo pipefail
           source=examples/opentofu-receipt-v1/main.gooo
+          denominator=contracts/opentofu-receipt-v1-denominator.json
           gooo=$(cat "$WORK_DIR/gooo-path")
           start_ns=$(date +%s%N)
-          /usr/bin/time -v -o "$WORK_DIR/syntax-time.txt" "$gooo" check --json "$source" > "$WORK_DIR/syntax.json"
-          end_ns=$(date +%s%N)
-          echo $(( (end_ns-start_ns+999999)/1000000 )) > "$WORK_DIR/syntax-wall-ms"
-          awk -F: '/Maximum resident set size/ {gsub(/ /,"",$2); print $2}' "$WORK_DIR/syntax-time.txt" > "$WORK_DIR/syntax-rss-kib"
-          start_ns=$(date +%s%N)
-          /usr/bin/time -v -o "$WORK_DIR/semantic-time.txt" "$gooo" check --semantic --json "$source" > "$WORK_DIR/semantic.json"
-          end_ns=$(date +%s%N)
-          echo $(( (end_ns-start_ns+999999)/1000000 )) > "$WORK_DIR/semantic-wall-ms"
-          awk -F: '/Maximum resident set size/ {gsub(/ /,"",$2); print $2}' "$WORK_DIR/semantic-time.txt" > "$WORK_DIR/semantic-rss-kib"
-          start_ns=$(date +%s%N)
-          /usr/bin/time -v -o "$WORK_DIR/graph-time.txt" "$gooo" graph dump "$source" > "$WORK_DIR/graph.json"
-          end_ns=$(date +%s%N)
-          echo $(( (end_ns-start_ns+999999)/1000000 )) > "$WORK_DIR/graph-wall-ms"
-          awk -F: '/Maximum resident set size/ {gsub(/ /,"",$2); print $2}' "$WORK_DIR/graph-time.txt" > "$WORK_DIR/graph-rss-kib"
-          jq -e '.schema_version=="gooo-graph/v1" and ([.nodes[]|select(.kind=="Activity")]|length)==12 and ([.nodes[]|select(.kind=="Activity")|.name]|unique|length)==12' "$WORK_DIR/graph.json" >/dev/null
-          jq -e '.schema_version=="gooo/diagnostics/v1" and .status=="ok" and .diagnostics==[]' "$WORK_DIR/syntax.json" >/dev/null
-          jq -e '.schema_version=="gooo/diagnostics/v1" and .status=="ok" and .diagnostics==[]' "$WORK_DIR/semantic.json" >/dev/null
-
-          while IFS=$'\t' read -r ordinal activity; do
-            raw=$(printf '%s/%02d-raw.json' "$WORK_DIR/resolutions" "$ordinal")
-            resolved=$(printf '%s/%02d-%s.json' "$WORK_DIR/resolutions" "$ordinal" "$activity")
-            "$gooo" graph resolve-activity "$source" --name "$activity" > "$raw"
-            jq -S --arg activity "$activity" --argjson ordinal "$ordinal" '. + {activity:$activity,ordinal:$ordinal}' "$raw" > "$resolved"
-          done < <(jq -r '.cells[]|[.ordinal,.activity]|@tsv' contracts/opentofu-receipt-v1-denominator.json)
-          rm "$WORK_DIR/resolutions"/*-raw.json
-          jq -S -s '.' "$WORK_DIR/resolutions"/*.json > "$WORK_DIR/resolved-activities.json"
-          jq -e 'length==12 and all(.[];.decision=="CLOSED" and .occurrences==1 and .claim.state=="CLOSED" and .activity!=null) and ([.[].activity]|unique|length)==12' "$WORK_DIR/resolved-activities.json" >/dev/null
-          cp "$WORK_DIR/syntax.json" "$PUBLISH_DIR/consumer/syntax.json"
-          cp "$WORK_DIR/semantic.json" "$PUBLISH_DIR/consumer/semantic.json"
-          cp "$WORK_DIR/graph.json" "$PUBLISH_DIR/consumer/graph.json"
-          cp "$WORK_DIR/resolved-activities.json" "$PUBLISH_DIR/consumer/resolved-activities.json"
-
-      - name: Bind producer and consumer activities one to one
-        shell: bash
-        run: |
-          set -euo pipefail
-          denominator=contracts/opentofu-receipt-v1-denominator.json
-          jq -S -n \
-            --slurpfile d "$denominator" \
-            --slurpfile p "$PUBLISH_DIR/producer/resolved-activities.json" \
-            --slurpfile g "$PUBLISH_DIR/consumer/graph.json" \
-            --slurpfile r "$PUBLISH_DIR/consumer/resolved-activities.json" '
-            $d[0] as $d | $p[0] as $p | $g[0] as $g | $r[0] as $r |
-            def activity_id($name):
-              [$g.nodes[]|select(.kind=="Activity" and .name==$name)|.id] as $ids |
-              if ($ids|length)==1 then $ids[0] else error("consumer activity cardinality mismatch") end;
+          /usr/bin/time -f '%M' -o "$WORK_DIR/gooo-rss-kib" "$gooo" graph dump "$source" > "$WORK_DIR/gooo-graph.json"
+          jq -e '([.nodes[]|select(.kind=="Activity")]|length)==12' "$WORK_DIR/gooo-graph.json" >/dev/null
+          jq -S -n --slurpfile denominator "$denominator" --slurpfile graph "$WORK_DIR/gooo-graph.json" --arg graph_sha256 "$(sha256sum "$WORK_DIR/gooo-graph.json" | awk '{print $1}')" '
+            $denominator[0] as $d | $graph[0] as $g |
+            def activity_id($name): [$g.nodes[]|select(.kind=="Activity" and .name==$name)|.id] as $ids | if ($ids|length)==1 then $ids[0] else error("activity binding cardinality mismatch") end;
             def inputs($activity): [$g.relations[]|select(.predicate=="used" and .subject==$activity)|.object]|unique|sort;
             def outputs($activity): [$g.relations[]|select(.predicate=="wasGeneratedBy" and .object==$activity)|.subject]|unique|sort;
-            [$d.cells[] as $c | ($p.activity_resolution_observation.entries[$c.ordinal-1]) as $pa |
-              ($r[$c.ordinal-1]) as $cr | (activity_id($c.activity)) as $ca |
-              {ordinal:$c.ordinal,producer_cell_id:$pa.id,producer_activity:$pa.activity,
-               consumer_cell_id:$c.id,consumer_activity:$c.activity,consumer_activity_id:$ca,
-               depends_on:($c.depends_on|sort),
-               graph_depends_on:([$d.cells[] as $pre | (activity_id($pre.activity)) as $pre_activity |
-                 (outputs($pre_activity)) as $pre_outputs |
-                 select(any($pre_outputs[]; . as $out | (inputs($ca)|index($out))!=null)) | $pre.id]|unique|sort),
-               consumer_resolution:{decision:$cr.decision,occurrences:$cr.occurrences,claim_state:$cr.claim.state}}] as $bindings |
-            if ($bindings|length)!=12 or
-               ([$bindings[].producer_activity]|unique|length)!=12 or
-               ([$bindings[].consumer_activity]|unique|length)!=12 or
-               (any($bindings[]; .depends_on!=.graph_depends_on)) then
-              error("one-to-one activity or dependency binding mismatch")
-            else
-              {schema:"gooo/infra-evidence/opentofu-receipt-v1-consumer-bindings/v1",verified:true,
-               producer_activity_count:12,consumer_activity_count:12,binding_cells:12,
-               target_mapping:{producer_cell_id:"UNKNOWN_TRACE",consumer_cell_id:"OPENTOFU_RECEIPT_UNKNOWN_TRACE"},
-               bindings:$bindings}
-            end
-          ' > "$PUBLISH_DIR/consumer/activity-bindings.json"
+            [$d.cells[] as $cell | (activity_id($cell.activity)) as $activity | (inputs($activity)) as $input_entities |
+              {id:$cell.id,activity:$cell.activity,depends_on:($cell.depends_on|sort),activity_id:$activity,input_entities:$input_entities,
+               graph_depends_on:([$d.cells[] as $predecessor | (activity_id($predecessor.activity)) as $predecessor_activity | (outputs($predecessor_activity)) as $predecessor_outputs |
+                 select(any($predecessor_outputs[]; . as $output | ($input_entities|index($output))!=null)) | $predecessor.id]|unique|sort)}] as $bindings |
+            if ($bindings|length)!=$d.target_cells or (($bindings|all(.[]; (.depends_on==.graph_depends_on)))|not) then error("graph dependency binding mismatch")
+            else {schema:"gooo/infra-evidence/opentofu-receipt-v1-meta-bindings/v1",verified:true,graph_sha256:$graph_sha256,binding_cells:($bindings|length),binding_edges:([$bindings[].graph_depends_on[]]|length),bindings:$bindings} end
+          ' > "$WORK_DIR/meta-bindings.json"
+          while IFS=$'\t' read -r ordinal activity; do
+            "$gooo" graph resolve-activity "$source" --name "$activity" > "$(printf '%s/resolutions/%02d-%s.json' "$WORK_DIR" "$ordinal" "$activity")"
+          done < <(jq -r '.cells[]|[.ordinal,.activity]|@tsv' "$denominator")
+          jq -S -s '.' "$WORK_DIR"/resolutions/*.json > "$WORK_DIR/activity-resolutions.json"
+          jq -e 'length==12 and all(.[];.decision=="CLOSED" and .occurrences==1 and .claim.state=="CLOSED")' "$WORK_DIR/activity-resolutions.json" >/dev/null
+          end_ns=$(date +%s%N)
+          echo $(( (end_ns-start_ns+999999)/1000000 )) > "$WORK_DIR/gooo-wall-ms"
 
-      - name: Evaluate OpenTofu Receipt V1 semantic pair and counterexamples
+      - name: Observe, replay, classify, and publish OpenTofu receipt
         shell: bash
         run: |
           set -euo pipefail
-          producer="$PUBLISH_DIR/producer"
-          cases="$PUBLISH_DIR/cases"
-          pair_tmp="$WORK_DIR/pair"
-          mkdir -p "$pair_tmp"
-          target=OPENTOFU_RECEIPT_UNKNOWN_TRACE
-          jq -S --arg target "$target" 'del(.id) | .cells |= map(select(.id != $target))' "$PUBLISH_DIR/consumer/before.json" > "$pair_tmp/before-unrelated.json"
-          jq -S --arg target "$target" 'del(.id) | .cells |= map(select(.id != $target))' "$PUBLISH_DIR/consumer/after.json" > "$pair_tmp/after-unrelated.json"
-          before_unrelated_digest=$(sha256sum "$pair_tmp/before-unrelated.json" | awk '{print $1}')
-          after_unrelated_digest=$(sha256sum "$pair_tmp/after-unrelated.json" | awk '{print $1}')
-          test "$before_unrelated_digest" = "$after_unrelated_digest"
-          before_digest=$(sha256sum "$PUBLISH_DIR/consumer/before.json" | awk '{print $1}')
-          after_digest=$(sha256sum "$PUBLISH_DIR/consumer/after.json" | awk '{print $1}')
-          before_closed=$(jq '[.cells[]|select(.state=="CLOSED")]|length' "$PUBLISH_DIR/consumer/before.json")
-          before_unknown=$(jq '[.cells[]|select(.state=="UNKNOWN")]|length' "$PUBLISH_DIR/consumer/before.json")
-          before_refuted=$(jq '[.cells[]|select(.state=="REFUTED")]|length' "$PUBLISH_DIR/consumer/before.json")
-          after_closed=$(jq '[.cells[]|select(.state=="CLOSED")]|length' "$PUBLISH_DIR/consumer/after.json")
-          after_unknown=$(jq '[.cells[]|select(.state=="UNKNOWN")]|length' "$PUBLISH_DIR/consumer/after.json")
-          after_refuted=$(jq '[.cells[]|select(.state=="REFUTED")]|length' "$PUBLISH_DIR/consumer/after.json")
-          test $((before_closed+before_unknown+before_refuted)) -eq 12
-          test $((after_closed+after_unknown+after_refuted)) -eq 12
-          jq -e --arg target "$target" '
-            ([.cells[]|select(.id==$target)]|length)==1 and
-            ([.cells[]|select(.id==$target)][0]|.state=="UNKNOWN" and
-              ([.stage,.step,.reason,.unknown_class,.next_operation,.blocked_by]|map(select(.!=null))|length)==6)
-          ' "$PUBLISH_DIR/consumer/before.json" >/dev/null
-          jq -e --arg target "$target" '
-            ([.cells[]|select(.id==$target)]|length)==1 and
-            ([.cells[]|select(.id==$target)][0]|.state=="CLOSED" and .unknown_class==null and .next_operation=="NONE")
-          ' "$PUBLISH_DIR/consumer/after.json" >/dev/null
-          jq -S -n \
-            --slurpfile b "$PUBLISH_DIR/consumer/before.json" \
-            --slurpfile a "$PUBLISH_DIR/consumer/after.json" \
-            --arg before_digest "$before_digest" --arg after_digest "$after_digest" \
-            --arg before_unrelated_digest "$before_unrelated_digest" --arg after_unrelated_digest "$after_unrelated_digest" \
-            --argjson before_closed "$before_closed" --argjson before_unknown "$before_unknown" --argjson before_refuted "$before_refuted" \
-            --argjson after_closed "$after_closed" --argjson after_unknown "$after_unknown" --argjson after_refuted "$after_refuted" '
-            {schema:"gooo/infra-evidence/opentofu-receipt-v1-semantic-pair/v1",domain:"OpenTofu Receipt V1",
-             target_cell_id:"OPENTOFU_RECEIPT_UNKNOWN_TRACE",producer_target_cell_id:"UNKNOWN_TRACE",
-             before:{digest:$before_digest,total:12,closed:$before_closed,unknown:$before_unknown,refuted:$before_refuted},
-             after:{digest:$after_digest,total:12,closed:$after_closed,unknown:$after_unknown,refuted:$after_refuted},
-             delta:{closed:($after_closed-$before_closed),unknown:($after_unknown-$before_unknown),refuted:($after_refuted-$before_refuted),total:0},
-             target_cell_transitions:1,unrelated_cell_changes:0,
-             unrelated_before_digest:$before_unrelated_digest,unrelated_after_digest:$after_unrelated_digest,
-             unrelated_digests_equal:($before_unrelated_digest==$after_unrelated_digest),
-             producer_internal_replay_equal:true,
-             before_target:([$b[0].cells[]|select(.id=="OPENTOFU_RECEIPT_UNKNOWN_TRACE")][0]),
-             after_target:([$a[0].cells[]|select(.id=="OPENTOFU_RECEIPT_UNKNOWN_TRACE")][0])}
-          ' > "$PUBLISH_DIR/consumer/semantic-pair.json"
-
-          jq -S -n --slurpfile conformance "$producer/conform-normal-a.json" --arg source "producer/conform-normal-a.json" '
-            {schema:"gooo/infra-evidence/opentofu-receipt-v1-transformation-case/v1",case_id:"normal",source_conformance:$source,
-             decision:"CLOSED",resolution:"EXACT",summary:{total:12,closed:12,unknown:0,refuted:0},claim:$conformance[0].claim,
-             producer_effect:{decision:$conformance[0].decision,internal_replay_equal:$conformance[0].effect.internal_replay_equal,
-               target_cell_id:$conformance[0].effect.target_cell_id,target_cell_transitions:$conformance[0].effect.target_cell_transitions,
-               unrelated_cell_changes:$conformance[0].effect.unrelated_cell_changes}}
-          ' > "$cases/normal.json"
-          jq -S -n --slurpfile conformance "$producer/conform-normal-b.json" --arg source "producer/conform-normal-b.json" '
-            {schema:"gooo/infra-evidence/opentofu-receipt-v1-transformation-case/v1",case_id:"normal-replay",source_conformance:$source,
-             decision:"CLOSED",resolution:"EXACT",summary:{total:12,closed:12,unknown:0,refuted:0},claim:$conformance[0].claim,
-             producer_effect:{decision:$conformance[0].decision,internal_replay_equal:$conformance[0].effect.internal_replay_equal,
-               target_cell_id:$conformance[0].effect.target_cell_id,target_cell_transitions:$conformance[0].effect.target_cell_transitions,
-               unrelated_cell_changes:$conformance[0].effect.unrelated_cell_changes}}
-          ' > "$cases/normal-replay.json"
-          jq -S -n --slurpfile conformance "$producer/conform-missing-pattern.json" --slurpfile effect "$producer/missing-pattern/effect-receipt.json" \
-            --arg source "producer/conform-missing-pattern.json" '
-            {schema:"gooo/infra-evidence/opentofu-receipt-v1-transformation-case/v1",case_id:"unknown-missing-evidence",source_conformance:$source,
-             decision:"FAIL_CLOSED",resolution:"LOWER_RESOLUTION",
-             summary:{total:12,closed:11,unknown:1,refuted:0},claim:$conformance[0].claim,
-             producer_process:{decision:$effect[0].decision,summary:$effect[0].process.summary}}
-          ' > "$cases/unknown-missing-evidence.json"
-          jq -S -n --slurpfile conformance "$producer/conform-unauthorized-operation.json" --slurpfile effect "$producer/unauthorized-operation/effect-receipt.json" \
-            --arg source "producer/conform-unauthorized-operation.json" '
-            {schema:"gooo/infra-evidence/opentofu-receipt-v1-transformation-case/v1",case_id:"refuted-digest-valid-laundering",source_conformance:$source,
-             decision:"FAIL_CLOSED",resolution:"EXACT",summary:{total:12,closed:6,unknown:0,refuted:6},claim:$effect[0].claim,
-             effect:{digest_valid:true,transition_count:0,before_after_unchanged:true,effect_laundering_rejected:true,
-               producer_conformance_decision:$conformance[0].decision},
-             authority_escalation:true,reason:"UNAUTHORIZED_TRANSFORMATION_OPERATION"}
-          ' > "$cases/refuted-digest-valid-laundering.json"
-          jq -S -n --slurpfile conformance "$producer/conform-refuted-over-unknown.json" --slurpfile effect "$producer/refuted-over-unknown/effect-receipt.json" \
-            --arg source "producer/conform-refuted-over-unknown.json" '
-            {schema:"gooo/infra-evidence/opentofu-receipt-v1-transformation-case/v1",case_id:"refuted-over-unknown",source_conformance:$source,
-             decision:"FAIL_CLOSED",resolution:"EXACT",summary:{total:12,closed:4,unknown:2,refuted:6},claim:$effect[0].claim,
-             precedence:{refuted_over_unknown:true,selected_state:"REFUTED",unknown_cells:2,refuted_cells:6},
-             producer_process:{decision:$effect[0].decision,summary:$effect[0].process.summary},
-             producer_conformance_decision:$conformance[0].decision}
-          ' > "$cases/refuted-over-unknown.json"
-
-      - name: Assemble exact adoption receipt and human report
-        shell: bash
-        run: |
-          set -euo pipefail
+          lock=contracts/opentofu-receipt-v1-release-lock.json
           denominator=contracts/opentofu-receipt-v1-denominator.json
-          producer="$PUBLISH_DIR/producer"
-          consumer="$PUBLISH_DIR/consumer"
-          cases="$PUBLISH_DIR/cases"
-          sha() { sha256sum "$1" | awk '{print $1}'; }
-          refuted_digest=$(sha256sum "$producer/conform-unauthorized-operation.json" "$producer/conform-refuted-over-unknown.json" | sha256sum | awk '{print $1}')
-          jq -S -n \
-            --arg released_core "$(sha "$consumer/core-release.json")" \
-            --arg activity_authority "$(sha "$consumer/activity-bindings.json")" \
-            --arg receipt_pattern "$(sha "$producer/conform-normal-a.json")" \
-            --arg receipt_baseline "$(sha "$consumer/before.json")" \
-            --arg receipt_candidate "$(sha "$producer/normal-a/candidate-selection.json")" \
-            --arg isolated_receipt "$(sha "$producer/normal-a/after-project.json")" \
-            --arg before_after "$(sha "$producer/normal-a/after-evaluation.json")" \
-            --arg exact_effect "$(sha "$producer/normal-a/effect-receipt.json")" \
-            --arg denominator "$(sha contracts/opentofu-receipt-v1-denominator.json)" \
-            --arg replay "$(sha "$producer/conform-normal-b.json")" \
-            --arg unknown "$(sha "$producer/conform-missing-pattern.json")" \
-            --arg counterexample "$refuted_digest" \
-            '{released_core:$released_core,activity_authority:$activity_authority,receipt_pattern:$receipt_pattern,receipt_baseline:$receipt_baseline,receipt_candidate:$receipt_candidate,isolated_receipt:$isolated_receipt,before_after:$before_after,exact_effect:$exact_effect,denominator:$denominator,replay:$replay,unknown:$unknown,counterexample:$counterexample}' \
-            > "$WORK_DIR/evidence-digests.json"
+          tofu=$(cat "$WORK_DIR/tofu-path")
+          first_start=$(date +%s%N)
+          /usr/bin/time -f '%M' -o "$WORK_DIR/first-rss-kib" "$tofu" version -json > "$WORK_DIR/version-first.json"
+          first_end=$(date +%s%N)
+          replay_start=$(date +%s%N)
+          /usr/bin/time -f '%M' -o "$WORK_DIR/replay-rss-kib" "$tofu" version -json > "$WORK_DIR/version-replay.json"
+          replay_end=$(date +%s%N)
+          echo $(( (first_end-first_start+999999)/1000000 )) > "$WORK_DIR/first-wall-ms"
+          echo $(( (replay_end-replay_start+999999)/1000000 )) > "$WORK_DIR/replay-wall-ms"
+          cmp "$WORK_DIR/version-first.json" "$WORK_DIR/version-replay.json"
+          jq -e --arg version "$(jq -r '.opentofu.iac_engine_version' "$lock")" --arg platform "$(jq -r '.opentofu.platform' "$lock")" '.terraform_version==$version and .platform==$platform and (.provider_selections|type=="object")' "$WORK_DIR/version-first.json" >/dev/null
 
-          regular_files=$(find . -path './.git' -prune -o -type f ! -path './README.md' -print | wc -l | tr -d ' ')
-          descendant_directories=$(find . -path './.git' -prune -o -mindepth 1 -type d -print | wc -l | tr -d ' ')
+          jq -S -n --arg subject "$SUBJECT_SHA" --slurpfile version "$WORK_DIR/version-first.json" \
+            --arg repository "$(jq -r '.opentofu.repository' "$lock")" --arg tag "$(jq -r '.opentofu.tag' "$lock")" \
+            --argjson release_id "$(jq '.opentofu.release_id' "$lock")" --arg target "$(jq -r '.opentofu.target_commit_sha' "$lock")" \
+            --arg engine "$(jq -r '.opentofu.iac_engine' "$lock")" --arg engine_version "$(jq -r '.opentofu.iac_engine_version' "$lock")" \
+            --arg format "$(jq -r '.opentofu.machine_readable_format_version' "$lock")" \
+            --arg binary_sha "$(sha256sum "$WORK_DIR/tofu/tofu.zip" | awk '{print $1}')" --arg version_sha "$(sha256sum "$WORK_DIR/version-first.json" | awk '{print $1}')" \
+            '{schema:"gooo/infra-evidence/opentofu-release-receipt/v1",receipt_state:"OBSERVED",subject_sha:$subject,iac_engine:$engine,iac_engine_version:$engine_version,engine_identity_source:"EXPLICIT_RELEASE_LOCK",engine_inferred_from_json_key:false,
+              release:{repository:$repository,tag:$tag,id:$release_id,target_commit_sha:$target},binary_asset_sha256:$binary_sha,machine_readable_format_version:$format,command_argv:["tofu","version","-json"],version_json_sha256:$version_sha,
+              version_json:{terraform_version:$version[0].terraform_version,platform:$version[0].platform,provider_selections:$version[0].provider_selections}}' > "$WORK_DIR/release-receipt.json"
+
+          bash scripts/evaluate-opentofu-receipt-v1.sh "$lock" "$WORK_DIR/version-first.json" "$WORK_DIR/release-receipt.json" "$WORK_DIR/tofu/tofu.zip" normal "$WORK_DIR/cases/normal.json"
+          bash scripts/evaluate-opentofu-receipt-v1.sh "$lock" "$WORK_DIR/version-first.json" "$WORK_DIR/cases/absent.json" "$WORK_DIR/tofu/tofu.zip" missing-release-receipt "$WORK_DIR/cases/missing.json"
+          jq '.binary_asset_sha256=("0"*64)' "$WORK_DIR/release-receipt.json" > "$WORK_DIR/cases/digest-mismatch-receipt.json"
+          bash scripts/evaluate-opentofu-receipt-v1.sh "$lock" "$WORK_DIR/version-first.json" "$WORK_DIR/cases/digest-mismatch-receipt.json" "$WORK_DIR/tofu/tofu.zip" digest-mismatch "$WORK_DIR/cases/digest-mismatch.json"
+          jq '.iac_engine="UNKNOWN"' "$WORK_DIR/release-receipt.json" > "$WORK_DIR/cases/unknown-engine-receipt.json"
+          bash scripts/evaluate-opentofu-receipt-v1.sh "$lock" "$WORK_DIR/version-first.json" "$WORK_DIR/cases/unknown-engine-receipt.json" "$WORK_DIR/tofu/tofu.zip" unknown-engine "$WORK_DIR/cases/unknown-engine.json"
+          jq -e '.decision=="CLOSED"' "$WORK_DIR/cases/normal.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .resolution=="LOWER_RESOLUTION" and ([.claims[].unknown_class]|sort)==["DEPENDENCY_BLOCKED","DIRECT_MISSING"]' "$WORK_DIR/cases/missing.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .claims[0].state=="REFUTED" and .claims[0].reason=="OPENTOFU_BINARY_DIGEST_MISMATCH"' "$WORK_DIR/cases/digest-mismatch.json" >/dev/null
+          jq -e '.decision=="FAIL_CLOSED" and .claims[0].state=="REFUTED" and .claims[0].reason=="OPENTOFU_ENGINE_UNKNOWN"' "$WORK_DIR/cases/unknown-engine.json" >/dev/null
+
           lines_for() { awk 'END {print NR+0}' "$1"; }
           find . -path './.git' -prune -o -type f ! -path './README.md' -print0 | sort -z | while IFS= read -r -d '' file; do
-            case "$file" in
-              *.go) language=Go ;;
-              *.gooo) language=Gooo ;;
-              *) continue ;;
-            esac
-            jq -S -n --arg path "${file#./}" --arg language "$language" --argjson lines "$(lines_for "$file")" \
-              '{path:$path,language:$language,physical_lines:$lines}'
+            case "$file" in *.go) language=Go ;; *.gooo) language=Gooo ;; *) continue ;; esac
+            jq -S -n --arg path "${file#./}" --arg language "$language" --argjson lines "$(lines_for "$file")" '{path:$path,language:$language,physical_lines:$lines}'
           done | jq -S -s '.' > "$WORK_DIR/source-lines.json"
+          regular_files=$(find . -path './.git' -prune -o -type f ! -path './README.md' -print | wc -l | tr -d ' ')
+          descendant_directories=$(find . -path './.git' -prune -o -mindepth 1 -type d -print | wc -l | tr -d ' ')
           go_files=$(jq '[.[]|select(.language=="Go")]|length' "$WORK_DIR/source-lines.json")
           go_lines=$(jq '[.[]|select(.language=="Go")|.physical_lines]|add//0' "$WORK_DIR/source-lines.json")
           gooo_files=$(jq '[.[]|select(.language=="Gooo")]|length' "$WORK_DIR/source-lines.json")
           gooo_lines=$(jq '[.[]|select(.language=="Gooo")|.physical_lines]|add//0' "$WORK_DIR/source-lines.json")
-          git status --porcelain=v1 -z --untracked-files=all > "$WORK_DIR/repository-after.bin"
-          if cmp -s "$WORK_DIR/repository-before.bin" "$WORK_DIR/repository-after.bin"; then repository_writes=0; else repository_writes=1; fi
-          go_version=$(go env GOVERSION)
-          syntax_wall=$(cat "$WORK_DIR/syntax-wall-ms")
-          syntax_rss=$(cat "$WORK_DIR/syntax-rss-kib")
-          semantic_wall=$(cat "$WORK_DIR/semantic-wall-ms")
-          semantic_rss=$(cat "$WORK_DIR/semantic-rss-kib")
-          graph_wall=$(cat "$WORK_DIR/graph-wall-ms")
-          graph_rss=$(cat "$WORK_DIR/graph-rss-kib")
+          refuted_digest=$(sha256sum "$WORK_DIR/cases/digest-mismatch.json" "$WORK_DIR/cases/unknown-engine.json" | sha256sum | awk '{print $1}')
+          replay_digest=$(sha256sum "$WORK_DIR/version-first.json" "$WORK_DIR/version-replay.json" | sha256sum | awk '{print $1}')
           jq -S -n \
-            --slurpfile d "$denominator" --slurpfile e "$WORK_DIR/evidence-digests.json" \
-            --slurpfile b "$consumer/activity-bindings.json" --slurpfile pair "$consumer/semantic-pair.json" \
-            --slurpfile normal "$cases/normal.json" --slurpfile replay "$cases/normal-replay.json" \
-            --slurpfile unknown "$cases/unknown-missing-evidence.json" --slurpfile laundering "$cases/refuted-digest-valid-laundering.json" \
-            --slurpfile mixed "$cases/refuted-over-unknown.json" --slurpfile lines "$WORK_DIR/source-lines.json" \
-            --arg subject "$SUBJECT_SHA" --arg go_version "$go_version" --argjson regular_files "$regular_files" \
-            --argjson descendant_directories "$descendant_directories" --argjson go_files "$go_files" --argjson go_lines "$go_lines" \
-            --argjson gooo_files "$gooo_files" --argjson gooo_lines "$gooo_lines" --argjson repository_writes "$repository_writes" \
-            --argjson syntax_wall "$syntax_wall" --argjson syntax_rss "$syntax_rss" --argjson semantic_wall "$semantic_wall" \
-            --argjson semantic_rss "$semantic_rss" --argjson graph_wall "$graph_wall" --argjson graph_rss "$graph_rss" '
-            $d[0] as $d | $e[0] as $e | $pair[0] as $pair |
-            [$d.cells[]|{ordinal,id,activity,stage,step,proof_choice,indicator_class,state:"CLOSED",reason:.closed_reason,evidence_digest:$e[.evidence_key]}] as $cells |
-            {schema:"gooo/infra-evidence/opentofu-receipt-v1-transformation-adoption/v1",subject_sha:$subject,
-             decision:"OPENTOFU_RECEIPT_TRANSFORMATION_CONSUMER_CLOSED",resolution:"EXACT",
-             scope:{domain:"OpenTofu Receipt V1",claim:"second independent domain consumer",consumer_count:{observed:1,total:1,state:"CLOSED"}},
-             producer:{repository:"kimjooyoon/gooo-evidence-generator",tag:"v0.4.0-dev",release_id:379239457,
-               target_commit_sha:"c60dfed9c082d91b9b20e3f465b3a7f2c0f522a0",
-               transformation_effect_zip_sha256:"cd15f867b90615133a6bb2ea2eb31a2745e1c9a730c6a80d37c1a6ca2cb1331d",
-               released_graph:"producer/graph.json",released_checks:["producer/syntax.json","producer/semantic.json","producer/resolved-activities.json"]},
-             summary:{total:12,closed:12,unknown:0,refuted:0,normal_paths:1,normal_replay_runs:2,unknown_paths:1,refuted_paths:2,
-               case_state_totals:{normal:{total:12,closed:12,unknown:0,refuted:0},unknown:{total:12,closed:11,unknown:1,refuted:0},
-                 refuted_digest_valid_laundering:{total:12,closed:6,unknown:0,refuted:6},refuted_over_unknown:{total:12,closed:4,unknown:2,refuted:6}}},
-             cells:$cells,
-             proofs:[$d.proof_totals[] as $p|{proof_choice:$p.proof_choice,total:$p.total,closed:([$cells[]|select(.proof_choice==$p.proof_choice and .state=="CLOSED")]|length)}],
-             indicators:[$d.indicator_totals[] as $i|{indicator_class:$i.indicator_class,total:$i.total,closed:([$cells[]|select(.indicator_class==$i.indicator_class and .state=="CLOSED")]|length)}],
-             activity_binding:$b[0],semantic_effect:$pair,
-             cases:{normal:$normal[0],normal_replay:$replay[0],unknown:$unknown[0],refuted_digest_valid_laundering:$laundering[0],refuted_over_unknown:$mixed[0]},
-             adoption:{consumer:{observed:1,total:1,state:"CLOSED"},language_generalization:{observed:0,total:1,state:"UNKNOWN",reason:"SCOPE_IS_SECOND_INDEPENDENT_DOMAIN_CONSUMER_ONLY"},external_user_utility:{observed:0,total:1,state:"UNKNOWN",reason:"NO_EXTERNAL_USER_EVIDENCE"},exact_before_after_improvement:{observed:1,total:1,state:"CLOSED"}},
-             metrics:{go_version:$go_version,wall_time_resolution:"CEILING_MILLISECOND",wall_ms:$graph_wall,peak_rss_kib:$graph_rss,
-               artifact_files:79,repository_writes:$repository_writes,local_test_executions:0,
-               opentofu:{init_executions:0,validate_executions:0,plan_executions:0},
-               go:{build_executions:0,test_executions:0},
-               producer_conformance_receipt_reuse:{observed:5,total:5,state:"CLOSED",scenarios:["normal-a","normal-b","missing-pattern","unauthorized-operation","refuted-over-unknown"]},
-               released_test_receipt_reuse:{observed:0,total:1,state:"UNKNOWN",reason:"NO_EXACT_DIGEST_TOOLCHAIN_SCENARIO_TEST_RECEIPT"},
-               saved_build_ms:{state:"UNKNOWN",value:null,reason:"NO_SAME_DIGEST_TOOLCHAIN_SCENARIO_BUILD_PAIR"},
-               saved_test_ms:{state:"UNKNOWN",value:null,reason:"NO_SAME_DIGEST_TOOLCHAIN_SCENARIO_TEST_PAIR"},
-               consumer_gooo:{syntax_check_executions:1,semantic_check_executions:1,graph_executions:1,activity_resolution_executions:12,
-                 syntax:{wall_ms:$syntax_wall,peak_rss_kib:$syntax_rss},semantic:{wall_ms:$semantic_wall,peak_rss_kib:$semantic_rss},
-                 graph:{wall_ms:$graph_wall,peak_rss_kib:$graph_rss}}},
-             inventory:{root_readme_excluded:true,repository_regular_files:$regular_files,descendant_directories:$descendant_directories,
-               go:{files:$go_files,physical_lines:$go_lines},gooo:{files:$gooo_files,physical_lines:$gooo_lines},source_lines:$lines[0]},
-             authority:{repository_writes:$repository_writes,local_test_executions:0,producer_source_checkouts:0,core_source_checkouts:0,
-               producer_build_executions:0,producer_test_executions:0,go_build_executions:0,go_test_executions:0,
-               opentofu_init_executions:0,opentofu_validate_executions:0,opentofu_plan_executions:0,
-               opentofu_runtime_network_access_claimed:false,opentofu_runtime_network_access_observed:null,
-               cross_project_required_gates:0,automatic_promotion:"FORBIDDEN",source_mutation:"FORBIDDEN",
-               external_user_utility:"UNKNOWN"}}
-          ' > "$PUBLISH_DIR/opentofu-receipt-v1-adoption.json"
+            --arg core_release "$(sha256sum "$WORK_DIR/core/release.json" | awk '{print $1}')" --arg meta "$(sha256sum "$WORK_DIR/meta-bindings.json" | awk '{print $1}')" \
+            --arg tofu_release "$(sha256sum "$WORK_DIR/tofu/release.json" | awk '{print $1}')" --arg lock "$(sha256sum "$lock" | awk '{print $1}')" \
+            --arg binary "$(sha256sum "$WORK_DIR/tofu/tofu.zip" | awk '{print $1}')" --arg version "$(sha256sum "$WORK_DIR/version-first.json" | awk '{print $1}')" \
+            --arg engine "$(sha256sum "$WORK_DIR/cases/normal.json" | awk '{print $1}')" --arg receipt "$(sha256sum "$WORK_DIR/release-receipt.json" | awk '{print $1}')" \
+            --arg replay "$replay_digest" --arg unknown "$(sha256sum "$WORK_DIR/cases/missing.json" | awk '{print $1}')" --arg refuted "$refuted_digest" --arg authority "$(cat "$WORK_DIR/repository-before.sha256")" \
+            '{core_release:$core_release,meta_activity_authority:$meta,opentofu_release:$tofu_release,opentofu_asset_lock:$lock,binary_digest:$binary,version_json:$version,engine_identity:$engine,receipt_publication:$receipt,deterministic_replay:$replay,unknown_causality:$unknown,refuted_counterexamples:$refuted,read_only_authority:$authority}' > "$WORK_DIR/evidence-digests.json"
 
-          cat > "$PUBLISH_DIR/opentofu-receipt-v1-report.md" <<EOF
-          # OpenTofu Receipt V1 transformation consumer
+          cp "$WORK_DIR/release-receipt.json" "$PUBLISH_DIR/opentofu-release-receipt.json"
+          cp "$WORK_DIR/version-first.json" "$PUBLISH_DIR/opentofu-version-first.json"
+          cp "$WORK_DIR/version-replay.json" "$PUBLISH_DIR/opentofu-version-replay.json"
+          jq -S -n --arg subject "$SUBJECT_SHA" --slurpfile d "$denominator" --slurpfile evidence "$WORK_DIR/evidence-digests.json" --slurpfile bindings "$WORK_DIR/meta-bindings.json" \
+            --slurpfile normal "$WORK_DIR/cases/normal.json" --slurpfile unknown "$WORK_DIR/cases/missing.json" --slurpfile digest "$WORK_DIR/cases/digest-mismatch.json" --slurpfile engine "$WORK_DIR/cases/unknown-engine.json" --slurpfile source_lines "$WORK_DIR/source-lines.json" \
+            --arg go_version "$(go env GOVERSION)" --argjson regular_files "$regular_files" --argjson directories "$descendant_directories" \
+            --argjson go_files "$go_files" --argjson go_lines "$go_lines" --argjson gooo_files "$gooo_files" --argjson gooo_lines "$gooo_lines" \
+            --argjson first_wall "$(cat "$WORK_DIR/first-wall-ms")" --argjson replay_wall "$(cat "$WORK_DIR/replay-wall-ms")" --argjson first_rss "$(cat "$WORK_DIR/first-rss-kib")" --argjson replay_rss "$(cat "$WORK_DIR/replay-rss-kib")" --argjson gooo_wall "$(cat "$WORK_DIR/gooo-wall-ms")" --argjson gooo_rss "$(cat "$WORK_DIR/gooo-rss-kib")" '
+            $d[0] as $denom | $evidence[0] as $e |
+            [$denom.cells[]|{ordinal,id,activity,stage,step,proof_choice,indicator_class,state:"CLOSED",reason:.closed_reason,evidence_digest:$e[.evidence_key]}] as $cells |
+            {schema:"gooo/infra-evidence/opentofu-receipt-v1-adoption/v1",subject_sha:$subject,decision:"OPENTOFU_RECEIPT_V1_CLOSED",resolution:"EXACT",
+              summary:{total:$denom.target_cells,closed:([$cells[]|select(.state=="CLOSED")]|length),unknown:0,refuted:0,normal_paths:$denom.expected.normal_paths,unknown_paths:$denom.expected.unknown_paths,unknown_claims:($unknown[0].claims|length),refuted_paths:$denom.expected.refuted_paths,output_artifact_files:$denom.expected.output_artifact_files},
+              cells:$cells,
+              proofs:[$denom.proof_totals[] as $p|{proof_choice:$p.proof_choice,total:$p.total,closed:([$cells[]|select(.proof_choice==$p.proof_choice and .state=="CLOSED")]|length)}],
+              indicators:[$denom.indicator_totals[] as $i|{indicator_class:$i.indicator_class,total:$i.total,closed:([$cells[]|select(.indicator_class==$i.indicator_class and .state=="CLOSED")]|length)}],
+              meta_activity_authority:$bindings[0],cases:{normal:$normal[0],unknown:$unknown[0],refuted:[$digest[0],$engine[0]]},
+              opentofu_adoption:$denom.expected.opentofu_adoption,released_adoption:$denom.expected.released_adoption,external_utility:$denom.expected.external_utility,exact_before_after_improvement:$denom.expected.exact_before_after_improvement,
+              metrics:{go_version:$go_version,wall_time_resolution:"CEILING_MILLISECOND",opentofu_version_executions:2,opentofu_init_executions:0,opentofu_plan_executions:0,opentofu_apply_executions:0,opentofu_test_executions:0,opentofu_build_executions:0,ci_build_executions:0,ci_build_wall_ms:0,ci_build_reason:"RELEASED_BINARY_REUSED_NO_SOURCE_BUILD",ci_test_executions:0,ci_test_wall_ms:0,ci_test_reason:"VERSION_RECEIPT_REQUIRES_NO_TEST_EXECUTION",local_test_executions:0,case_evaluator_executions:4,core_release_asset_downloads:2,opentofu_release_asset_downloads:2,released_binary_reuse:{observed:1,total:1},source_build_skipped_due_to_released_binary:1,test_receipt_reuse_state:"NOT_CLAIMED",time_saved_state:"UNKNOWN",first:{wall_ms:$first_wall,peak_rss_kib:$first_rss},replay:{wall_ms:$replay_wall,peak_rss_kib:$replay_rss},gooo:{wall_ms:$gooo_wall,peak_rss_kib:$gooo_rss,graph_executions:1,activity_resolution_executions:12}},
+              inventory:{root_readme_excluded:true,regular_files:$regular_files,descendant_directories:$directories,go:{files:$go_files,physical_lines:$go_lines},gooo:{files:$gooo_files,physical_lines:$gooo_lines},source_lines:$source_lines[0]},
+              authority:{repository_writes:0,cross_project_required_gates:0,core_source_checkouts:0,opentofu_source_checkouts:0,product_generation_authorized:false,deployment_execution_authorized:false,opentofu_provider_accesses:0,opentofu_cloud_accesses:0,opentofu_runtime_network_access_claimed:false,opentofu_runtime_network_access_observed:null}}
+          ' > "$PUBLISH_DIR/opentofu-adoption-receipt.json"
 
-          - decision: OPENTOFU_RECEIPT_TRANSFORMATION_CONSUMER_CLOSED
-          - scope: second independent domain consumer 1/1 CLOSED
-          - language-wide generalization: UNKNOWN (0/1)
-          - semantic pair: before 11 CLOSED / 1 UNKNOWN / 0 REFUTED; after 12 CLOSED / 0 UNKNOWN / 0 REFUTED
-          - target: OPENTOFU_RECEIPT_UNKNOWN_TRACE UNKNOWN -> CLOSED; transitions 1; unrelated cell changes 0; unrelated digests equal
-          - exact delta: closed +1, unknown -1, refuted 0, denominator 0
+          cat > "$PUBLISH_DIR/opentofu-report.md" <<EOF
+          # OpenTofu receipt V1
+
+          - decision: OPENTOFU_RECEIPT_V1_CLOSED
+          - cells: 12/12 CLOSED; UNKNOWN 0; REFUTED 0
           - proof: FOUNDATION 4/4; COHERENCE 4/4; REGRESSION 4/4
           - indicators: DRIVER 4/4; OUTCOME 4/4; GUARDRAIL 4/4
-          - cases normal / UNKNOWN / REFUTED: 1 / 1 / 2; normal replay runs: 2
-          - normal: 12 CLOSED / 0 UNKNOWN / 0 REFUTED
-          - unknown missing evidence: 11 CLOSED / 1 UNKNOWN / 0 REFUTED; coordinates 6/6
-          - refuted digest-valid effect laundering and authority escalation: 6 CLOSED / 0 UNKNOWN / 6 REFUTED
-          - refuted-over-unknown: 4 CLOSED / 2 UNKNOWN / 6 REFUTED; selected state REFUTED
-          - producer conformance receipt reuse: 5/5 CLOSED
-          - released test receipt reuse: 0/1 UNKNOWN
-          - Go: $go_version; build/test executions: 0/0
-          - OpenTofu init/validate/plan executions: 0/0/0
-          - consumer Gooo check/semantic/graph/activity resolutions: 1/1/1/12
-          - graph wall/RSS: $graph_wall ms / $graph_rss KiB
-          - syntax wall/RSS: $syntax_wall ms / $syntax_rss KiB
-          - semantic wall/RSS: $semantic_wall ms / $semantic_rss KiB
-          - repository files/subdirectories: $regular_files/$descendant_directories; root README: EXCLUDED
-          - Go files/physical lines: $go_files/$go_lines; Gooo files/physical lines: $gooo_files/$gooo_lines
-          - artifact files: 79; repository writes: $repository_writes; local test executions: 0
-          - saved_build_ms: UNKNOWN; saved_test_ms: UNKNOWN
-          - external user utility: UNKNOWN (0/1)
+          - OpenTofu adoption: 1/1 CLOSED
+          - normal/UNKNOWN/REFUTED paths: 1/1/2
+          - UNKNOWN claims: 2; DIRECT_MISSING 1; DEPENDENCY_BLOCKED 1; coordinates 6/6 each
+          - OpenTofu version executions: 2; init/plan/apply/test/build: 0/0/0/0/0
+          - first wall/RSS: $(cat "$WORK_DIR/first-wall-ms") ms / $(cat "$WORK_DIR/first-rss-kib") KiB
+          - replay wall/RSS: $(cat "$WORK_DIR/replay-wall-ms") ms / $(cat "$WORK_DIR/replay-rss-kib") KiB
+          - repository writes/local tests/cross-project gates: 0/0/0
+          - released adoption/external utility/exact improvement: 0/1 UNKNOWN, 0/1 UNKNOWN, 0/1 UNKNOWN
           EOF
 
-      - name: Independently conform the consumer and bind seventy-nine artifacts
+      - name: Independently conform and manifest seven artifacts
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/conform-opentofu-receipt-transformation-v1.sh \
-            "$PUBLISH_DIR" contracts/opentofu-receipt-v1-denominator.json "$PUBLISH_DIR/producer" "$WORK_DIR/conformance.json"
+          denominator=contracts/opentofu-receipt-v1-denominator.json
+          bash scripts/conform-opentofu-receipt-v1.sh "$PUBLISH_DIR" "$denominator" "$WORK_DIR/conformance.json"
           cp "$WORK_DIR/conformance.json" "$PUBLISH_DIR/conformance.json"
-          pre_manifest_files=$(find "$PUBLISH_DIR" -type f | wc -l | tr -d ' ')
-          test "$pre_manifest_files" = 78
-          cd "$PUBLISH_DIR"
-          find . -type f ! -name manifest.json -printf '%P\t' | sort | while IFS=$'\t' read -r file; do
-            jq -S -n --arg name "$file" --arg sha256 "$(sha256sum "$file" | awk '{print $1}')" \
-              --argjson size "$(wc -c < "$file" | tr -d ' ')" '{name:$name,sha256:$sha256,size_bytes:$size}'
+          files=(conformance.json opentofu-adoption-receipt.json opentofu-release-receipt.json opentofu-report.md opentofu-version-first.json opentofu-version-replay.json)
+          for file in "${files[@]}"; do
+            jq -S -n --arg name "$file" --arg sha256 "$(sha256sum "$PUBLISH_DIR/$file" | awk '{print $1}')" --argjson size "$(wc -c < "$PUBLISH_DIR/$file" | tr -d ' ')" '{name:$name,sha256:$sha256,size_bytes:$size}'
           done | jq -S -s '.' > "$WORK_DIR/manifest-files.json"
           jq -S -n --arg subject "$SUBJECT_SHA" --slurpfile files "$WORK_DIR/manifest-files.json" \
-            '{schema:"gooo/infra-evidence/opentofu-receipt-v1-transformation-manifest/v1",subject_sha:$subject,output_artifact_files:79,
-              expected_files:(([$files[0][]|.name]+["manifest.json"])|sort),files:$files[0]}'
-            > "$PUBLISH_DIR/manifest.json"
-          actual=$(find "$PUBLISH_DIR" -type f -printf '%P\n' | sort | jq -R -s 'split("\n")|map(select(length>0))')
-          jq -e --argjson actual "$actual" '.output_artifact_files==79 and .expected_files==$actual and (.files|length)==78' "$PUBLISH_DIR/manifest.json" >/dev/null
+            '{schema:"gooo/infra-evidence/opentofu-receipt-v1-manifest/v1",subject_sha:$subject,output_artifact_files:7,expected_files:["conformance.json","manifest.json","opentofu-adoption-receipt.json","opentofu-release-receipt.json","opentofu-report.md","opentofu-version-first.json","opentofu-version-replay.json"],files:$files[0]}' > "$PUBLISH_DIR/manifest.json"
+          actual=$(find "$PUBLISH_DIR" -maxdepth 1 -type f -printf '%f\n' | sort | jq -R -s 'split("\n")|map(select(length>0))')
+          jq -e --argjson actual "$actual" '.output_artifact_files==7 and .expected_files==$actual and (.files|length)==6' "$PUBLISH_DIR/manifest.json" >/dev/null
           while IFS=$'\t' read -r name expected; do
             test "$(sha256sum "$PUBLISH_DIR/$name" | awk '{print $1}')" = "$expected"
           done < <(jq -r '.files[]|[.name,.sha256]|@tsv' "$PUBLISH_DIR/manifest.json")
-          test "$(find "$PUBLISH_DIR" -type f | wc -l | tr -d ' ')" = 79
-          cd "$GITHUB_WORKSPACE"
-          git status --porcelain=v1 -z --untracked-files=all > "$WORK_DIR/repository-after.bin"
-          cmp "$WORK_DIR/repository-before.bin" "$WORK_DIR/repository-after.bin"
+          snapshot() {
+            find . -path './.git' -prune -o -type f ! -path './README.md' -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}'
+          }
+          snapshot > "$WORK_DIR/repository-after.sha256"
+          cmp "$WORK_DIR/repository-before.sha256" "$WORK_DIR/repository-after.sha256"
 
-      - name: Upload OpenTofu Receipt V1 consumer evidence
-        if: always()
+      - name: Upload OpenTofu receipt evidence
         uses: actions/upload-artifact@v6
         with:
-          name: opentofu-receipt-v1-transformation-${{ env.SUBJECT_SHA }}
+          name: opentofu-receipt-v1-${{ env.SUBJECT_SHA }}
           path: ${{ env.PUBLISH_DIR }}
           if-no-files-found: error
           retention-days: 14
 
       - name: Write human CI summary
-        if: always()
         shell: bash
         run: |
-          if [ -s "$PUBLISH_DIR/opentofu-receipt-v1-report.md" ]; then
-            cat "$PUBLISH_DIR/opentofu-receipt-v1-report.md" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          cat "$PUBLISH_DIR/opentofu-report.md" >> "$GITHUB_STEP_SUMMARY"

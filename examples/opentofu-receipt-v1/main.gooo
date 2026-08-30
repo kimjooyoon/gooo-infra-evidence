@@ -1,29 +1,29 @@
 package opentofureceiptv1
 namespace opentofureceiptv1
 
-entity OpenTofuReceiptConsumer id "infra://opentofu-receipt-v1/consumer"
-entity ReleasedTransformationCore id "infra://opentofu-receipt-v1/released-transformation-core"
-entity TransformationActivityAuthority id "infra://opentofu-receipt-v1/transformation-activity-authority"
-entity OpenTofuReceiptPattern id "infra://opentofu-receipt-v1/receipt-pattern"
-entity OpenTofuReceiptBaseline id "infra://opentofu-receipt-v1/receipt-baseline"
-entity OpenTofuReceiptCandidate id "infra://opentofu-receipt-v1/receipt-candidate"
-entity IsolatedOpenTofuReceipt id "infra://opentofu-receipt-v1/isolated-receipt"
-entity OpenTofuReceiptBeforeAfter id "infra://opentofu-receipt-v1/before-after"
-entity ExactOpenTofuReceiptEffect id "infra://opentofu-receipt-v1/exact-effect"
-entity OpenTofuReceiptDenominator id "infra://opentofu-receipt-v1/denominator"
-entity OpenTofuReceiptReplay id "infra://opentofu-receipt-v1/replay"
-entity OpenTofuReceiptUnknownTrace id "infra://opentofu-receipt-v1/unknown-trace"
-entity OpenTofuReceiptCounterexample id "infra://opentofu-receipt-v1/counterexample"
+entity OpenTofuReceiptExperiment id "infra://opentofu-receipt-v1/experiment"
+entity CoreReleaseReceipt id "infra://opentofu-receipt-v1/core-release"
+entity MetaActivityAuthority id "infra://opentofu-receipt-v1/meta-activity-authority"
+entity OpenTofuReleaseReceipt id "infra://opentofu-receipt-v1/opentofu-release"
+entity OpenTofuAssetLock id "infra://opentofu-receipt-v1/opentofu-asset-lock"
+entity OpenTofuBinaryDigest id "infra://opentofu-receipt-v1/binary-digest"
+entity OpenTofuVersionJSON id "infra://opentofu-receipt-v1/version-json"
+entity ExplicitOpenTofuIdentity id "infra://opentofu-receipt-v1/engine-identity"
+entity PublishedOpenTofuReceipt id "infra://opentofu-receipt-v1/published-receipt"
+entity OpenTofuReplayReceipt id "infra://opentofu-receipt-v1/replay"
+entity OpenTofuUnknownReport id "infra://opentofu-receipt-v1/unknown"
+entity OpenTofuRefutationReports id "infra://opentofu-receipt-v1/refutations"
+entity OpenTofuReadOnlyAuthority id "infra://opentofu-receipt-v1/read-only-authority"
 
-activity ObserveReleasedTransformationCore(OpenTofuReceiptConsumer) -> ReleasedTransformationCore
-activity BindTransformationActivities(ReleasedTransformationCore) -> TransformationActivityAuthority
-activity ObserveOpenTofuReceiptPattern(TransformationActivityAuthority) -> OpenTofuReceiptPattern
-activity PinOpenTofuReceiptBaseline(OpenTofuReceiptPattern) -> OpenTofuReceiptBaseline
-activity SelectMetaBoundOpenTofuReceiptCandidate(TransformationActivityAuthority, OpenTofuReceiptPattern) -> OpenTofuReceiptCandidate
-activity ApplyCandidateToIsolatedOpenTofuReceipt(OpenTofuReceiptCandidate, OpenTofuReceiptBaseline) -> IsolatedOpenTofuReceipt
-activity EvaluateOpenTofuReceiptBeforeAfter(OpenTofuReceiptBaseline, IsolatedOpenTofuReceipt) -> OpenTofuReceiptBeforeAfter
-activity PublishExactOpenTofuReceiptEffect(OpenTofuReceiptBeforeAfter) -> ExactOpenTofuReceiptEffect
-activity PreserveOpenTofuReceiptDenominator(TransformationActivityAuthority, OpenTofuReceiptBaseline, IsolatedOpenTofuReceipt) -> OpenTofuReceiptDenominator
-activity VerifyOpenTofuReceiptTransformationReplay(ExactOpenTofuReceiptEffect, OpenTofuReceiptDenominator) -> OpenTofuReceiptReplay
-activity PreserveOpenTofuReceiptUnknown(TransformationActivityAuthority) -> OpenTofuReceiptUnknownTrace
-activity RefuteOpenTofuReceiptCounterexample(TransformationActivityAuthority) -> OpenTofuReceiptCounterexample
+activity ObserveReleasedGoooCore(OpenTofuReceiptExperiment) -> CoreReleaseReceipt
+activity BindOpenTofuReceiptActivities(CoreReleaseReceipt) -> MetaActivityAuthority
+activity ObservePinnedOpenTofuRelease(MetaActivityAuthority) -> OpenTofuReleaseReceipt
+activity BindOpenTofuAssetLock(OpenTofuReleaseReceipt) -> OpenTofuAssetLock
+activity VerifyOpenTofuBinaryDigest(OpenTofuAssetLock) -> OpenTofuBinaryDigest
+activity ExecuteOpenTofuVersionJSON(OpenTofuBinaryDigest) -> OpenTofuVersionJSON
+activity BindExplicitOpenTofuIdentity(OpenTofuVersionJSON) -> ExplicitOpenTofuIdentity
+activity PublishOpenTofuReceipt(ExplicitOpenTofuIdentity) -> PublishedOpenTofuReceipt
+activity VerifyOpenTofuReceiptReplay(PublishedOpenTofuReceipt) -> OpenTofuReplayReceipt
+activity PreserveOpenTofuReceiptUnknown(PublishedOpenTofuReceipt) -> OpenTofuUnknownReport
+activity RefuteOpenTofuReceiptContradictions(PublishedOpenTofuReceipt) -> OpenTofuRefutationReports
+activity PreserveOpenTofuReadOnlyAuthority(OpenTofuReplayReceipt, OpenTofuUnknownReport, OpenTofuRefutationReports) -> OpenTofuReadOnlyAuthority
