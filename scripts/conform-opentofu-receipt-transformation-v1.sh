@@ -55,9 +55,9 @@ for scenario_dir in normal-a normal-b missing-pattern unauthorized-operation ref
   done < <(jq -r '.files[]|[.path,.sha256]|@tsv' "$manifest")
 done
 
-test "$(jq -r '.schema' "$publish/consumer/syntax.json")" = "gooo/diagnostics/v1"
+test "$(jq -r '.schema_version' "$publish/consumer/syntax.json")" = "gooo/diagnostics/v1"
 test "$(jq -r '.status' "$publish/consumer/syntax.json")" = ok
-test "$(jq -r '.schema' "$publish/consumer/semantic.json")" = "gooo/diagnostics/v1"
+test "$(jq -r '.schema_version' "$publish/consumer/semantic.json")" = "gooo/diagnostics/v1"
 test "$(jq -r '.status' "$publish/consumer/semantic.json")" = ok
 jq -e '
   .schema_version=="gooo-graph/v1" and
