@@ -48,6 +48,7 @@ jq -e '
   .test=={executions:0,wall_ms:null,peak_rss_kib:null,cache_hit:null,state:"UNKNOWN",unknown_class:"NOT_EXECUTED"} and
   .inventory.root_readme_excluded==true and all(.inventory.per_file[]; .path!="README.md")
 ' "$actions_evidence" >/dev/null
+printf 'bridge evaluator: actions evidence accepted\n'
 
 check_manifest() {
   local directory=$1
@@ -58,6 +59,7 @@ check_manifest() {
   while IFS=$'\t' read -r file expected; do
     test "$expected" = "$(sha256sum "$directory/$file" | awk '{print $1}')"
   done < <(jq -r '.files[]|[.path,.sha256]|@tsv' "$directory/manifest.json")
+  printf 'bridge evaluator: manifest accepted %s\n' "$directory"
 }
 
 check_bundle() {
@@ -101,6 +103,7 @@ check_bundle() {
     printf 'aggregate score or percentage appeared in report: %s\n' "$directory/report.md" >&2
     exit 67
   fi
+  printf 'bridge evaluator: bundle accepted %s\n' "$directory"
 }
 
 check_manifest "$normal"
@@ -114,6 +117,7 @@ for file in bundle.json mapping-ontology.json relations.ndjson causal-frontier.j
   cmp -s "$replay_a/$file" "$replay_b/$file"
   cmp -s "$normal/$file" "$replay_a/$file"
 done
+printf 'bridge evaluator: replay accepted\n'
 
 subject_sha=$(jq -r '.subject_sha' "$normal/bundle.json")
 jq -S -n \
