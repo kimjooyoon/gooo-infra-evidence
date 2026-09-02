@@ -51,7 +51,7 @@ jobs:
             tag=$(jq -r --arg key "$key" '.[$key].tag' "$lock")
             release_id=$(jq -r --arg key "$key" '.[$key].release_id' "$lock")
             expected_prerelease=$(jq -r --arg key "$key" '.[$key].prerelease' "$lock")
-            expected_tag_object=$(jq -r --arg key "$key" '.[$key].tag_object_sha' "$lock")
+            expected_tag_object=$(jq -r --arg key "$key" '.[$key].tag_object_sha // ""' "$lock")
             expected_target=$(jq -r --arg key "$key" '.[$key].target_commit_sha' "$lock")
             gh api "repos/$repository/releases/tags/$tag" > "$WORK_DIR/$key-release.json"
             gh api "repos/$repository/git/ref/tags/$tag" > "$WORK_DIR/$key-ref.json"
