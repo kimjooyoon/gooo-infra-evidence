@@ -1,0 +1,16 @@
+{
+  "schema": "gooo/infra-evidence/opentofu-service-contract-bridge/service-metadata/v1",
+  "service_id": "checkout-service",
+  "repository": "kimjooyoon/checkout-service",
+  "metadata_is_optional": true,
+  "operation_claims": {
+    "createCheckout": "checkout.create"
+  },
+  "claims": [
+    {
+      "claim_id": "checkout.create",
+      "statement": "POST /checkout creates one checkout",
+      "owner": "SERVICE_CONTRACT"
+    }
+  ]
+}

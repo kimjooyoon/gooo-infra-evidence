@@ -1,0 +1,238 @@
+name: OpenTofu service contract bridge
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opentofu-service-contract-bridge-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bridge:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SUBJECT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      WORK_DIR: /tmp/gooo-opentofu-service-contract-bridge
+      EVIDENCE_DIR: /tmp/gooo-opentofu-service-contract-bridge-evidence
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SUBJECT_SHA }}
+
+      - name: Bind exact subject identity and Go 1.27
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.0'
+
+      - name: Acquire immutable released Gooo and OpenTofu identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$WORK_DIR" "$EVIDENCE_DIR"
+          mkdir -p "$WORK_DIR/core" "$WORK_DIR/opentofu" "$WORK_DIR/core/bin" "$EVIDENCE_DIR"
+          lock=contracts/opentofu-service-contract-bridge-release-lock-v1.json
+
+          verify_release_identity() {
+            local key=$1
+            local repository tag release_id expected_prerelease expected_tag_object expected_target
+            repository=$(jq -r --arg key "$key" '.[$key].repository' "$lock")
+            tag=$(jq -r --arg key "$key" '.[$key].tag' "$lock")
+            release_id=$(jq -r --arg key "$key" '.[$key].release_id' "$lock")
+            expected_prerelease=$(jq -r --arg key "$key" '.[$key].prerelease' "$lock")
+            expected_tag_object=$(jq -r --arg key "$key" '.[$key].tag_object_sha' "$lock")
+            expected_target=$(jq -r --arg key "$key" '.[$key].target_commit_sha' "$lock")
+            gh api "repos/$repository/releases/tags/$tag" > "$WORK_DIR/$key-release.json"
+            gh api "repos/$repository/git/ref/tags/$tag" > "$WORK_DIR/$key-ref.json"
+            gh api "repos/$repository/git/tags/$expected_tag_object" > "$WORK_DIR/$key-tag.json"
+            jq -e --arg tag "$tag" --argjson id "$release_id" --argjson prerelease "$expected_prerelease" \
+              --arg tag_object "$expected_tag_object" --arg target "$expected_target" \
+              --slurpfile ref "$WORK_DIR/$key-ref.json" --slurpfile tag_obj "$WORK_DIR/$key-tag.json" \
+              '.tag_name==$tag and .id==$id and .draft==false and .prerelease==$prerelease and
+               $ref[0].object.type=="tag" and $ref[0].object.sha==$tag_object and
+               $tag_obj[0].object.sha==$target' "$WORK_DIR/$key-release.json" >/dev/null
+          }
+
+          verify_asset() {
+            local key=$1 asset_key=$2 output=$3
+            local repository asset_id asset_name expected_size expected_sha
+            repository=$(jq -r --arg key "$key" '.[$key].repository' "$lock")
+            asset_id=$(jq -r --arg key "$key" --arg asset "$asset_key" '.[$key].assets[$asset].id' "$lock")
+            asset_name=$(jq -r --arg key "$key" --arg asset "$asset_key" '.[$key].assets[$asset].name' "$lock")
+            expected_size=$(jq -r --arg key "$key" --arg asset "$asset_key" '.[$key].assets[$asset].size' "$lock")
+            expected_sha=$(jq -r --arg key "$key" --arg asset "$asset_key" '.[$key].assets[$asset].sha256' "$lock")
+            jq -e --argjson id "$asset_id" --arg name "$asset_name" --argjson size "$expected_size" \
+              --arg digest "sha256:$expected_sha" \
+              '.assets[]|select(.id==$id and .name==$name and .size==$size and .digest==$digest)' \
+              "$WORK_DIR/$key-release.json" >/dev/null
+            gh api -H 'Accept: application/octet-stream' "repos/$repository/releases/assets/$asset_id" > "$output"
+            test "$(wc -c < "$output" | tr -d ' ')" = "$expected_size"
+            test "$(sha256sum "$output" | awk '{print $1}')" = "$expected_sha"
+          }
+
+          verify_release_identity core
+          verify_release_identity opentofu
+          verify_asset core linux "$WORK_DIR/core/gooo-linux-amd64.tar.gz"
+          verify_asset core checksums "$WORK_DIR/core/SHA256SUMS"
+          verify_asset opentofu linux "$WORK_DIR/opentofu/tofu_1.12.6_linux_amd64.zip"
+          verify_asset opentofu checksums "$WORK_DIR/opentofu/tofu_1.12.6_SHA256SUMS"
+          core_name=$(jq -r '.core.assets.linux.name' "$lock")
+          opentofu_name=$(jq -r '.opentofu.assets.linux.name' "$lock")
+          test "$(awk -v name="$core_name" '$2==name {print $1}' "$WORK_DIR/core/SHA256SUMS")" = "$(sha256sum "$WORK_DIR/core/gooo-linux-amd64.tar.gz" | awk '{print $1}')"
+          test "$(awk -v name="$opentofu_name" '$2==name {print $1}' "$WORK_DIR/opentofu/tofu_1.12.6_SHA256SUMS")" = "$(sha256sum "$WORK_DIR/opentofu/tofu_1.12.6_linux_amd64.zip" | awk '{print $1}')"
+          tar -xzf "$WORK_DIR/core/gooo-linux-amd64.tar.gz" -C "$WORK_DIR/core/bin"
+          find "$WORK_DIR/core/bin" -type f -name gooo -exec chmod +x {} \;
+          find "$WORK_DIR/core/bin" -type f -name gooo -print -quit > "$WORK_DIR/gooo-path"
+          test -s "$WORK_DIR/gooo-path"
+
+          jq -S -n --slurpfile lock "$lock" \
+            --arg core_release_json "$WORK_DIR/core-release.json" \
+            --arg opentofu_release_json "$WORK_DIR/opentofu-release.json" \
+            --arg core_asset_sha "$(sha256sum "$WORK_DIR/core/gooo-linux-amd64.tar.gz" | awk '{print $1}')" \
+            --arg opentofu_asset_sha "$(sha256sum "$WORK_DIR/opentofu/tofu_1.12.6_linux_amd64.zip" | awk '{print $1}')" \
+            '{schema:"gooo/infra-evidence/opentofu-service-contract-bridge/release-evidence/v1",identity_verified:true,
+              core:$lock[0].core,opentofu:$lock[0].opentofu,
+              observed:{core_release_json:$core_release_json,opentofu_release_json:$opentofu_release_json,
+                core_linux_asset_sha256:$core_asset_sha,opentofu_linux_asset_sha256:$opentofu_asset_sha},
+              authority:{source_checkouts:0,opentofu_binary_executions:0,opentofu_init_executions:0,
+                opentofu_plan_executions:0,opentofu_apply_executions:0,opentofu_test_executions:0,
+                provider_accesses:0,remote_state_writes:0}}' > "$EVIDENCE_DIR/release-evidence.json"
+
+      - name: Resolve released Gooo bridge graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          gooo=$(cat "$WORK_DIR/gooo-path")
+          source=examples/opentofu-service-contract-bridge/main.gooo
+          denominator=contracts/opentofu-service-contract-bridge-denominator-v1.json
+          "$gooo" version --json > "$WORK_DIR/gooo-version.json"
+          "$gooo" check --json "$source" > "$WORK_DIR/gooo-syntax.json"
+          "$gooo" check --semantic --json "$source" > "$WORK_DIR/gooo-semantic.json"
+          start_ns=$(date +%s%N)
+          /usr/bin/time -v -o "$WORK_DIR/gooo-graph-time.txt" "$gooo" graph dump "$source" > "$WORK_DIR/gooo-graph.json"
+          end_ns=$(date +%s%N)
+          echo $(( (end_ns-start_ns+999999)/1000000 )) > "$WORK_DIR/gooo-graph-wall-ms"
+          awk -F: '/Maximum resident set size/ {gsub(/ /,"",$2); print $2}' "$WORK_DIR/gooo-graph-time.txt" > "$WORK_DIR/gooo-graph-rss-kib"
+          jq -e '.schema_version=="gooo/diagnostics/v1" and .status=="ok" and .diagnostics==[]' "$WORK_DIR/gooo-syntax.json" "$WORK_DIR/gooo-semantic.json" >/dev/null
+          jq -e '.schema_version=="gooo-graph/v1" and ([.nodes[]|select(.kind=="Activity")]|length)==12 and ([.nodes[]|select(.kind=="Activity")|.name]|unique|length)==12' "$WORK_DIR/gooo-graph.json" >/dev/null
+          mkdir -p "$WORK_DIR/activity-resolutions"
+          while IFS=$'\t' read -r ordinal activity; do
+            receipt=$(printf '%s/%02d-%s.json' "$WORK_DIR/activity-resolutions" "$ordinal" "$activity")
+            "$gooo" graph resolve-activity "$source" --name "$activity" > "$receipt"
+            jq -e --arg activity "$activity" \
+              '.schema=="gooo/activity-cardinality-resolution/v1" and .selector.name==$activity and
+               .decision=="CLOSED" and .occurrences==1 and .claim.state=="CLOSED"' "$receipt" >/dev/null
+          done < <(jq -r '.cells[]|[.ordinal,.activity]|@tsv' "$denominator")
+          jq -S -s '.' "$WORK_DIR/activity-resolutions"/*.json > "$EVIDENCE_DIR/gooo-activity-resolutions.json"
+          git status --porcelain=v1 -z --untracked-files=all > "$WORK_DIR/repository-after-gooo.bin"
+
+      - name: Capture exact Actions execution evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          files_for() {
+            find . -type f "$@" -not -path './.git/*' -not -path './README.md' -print
+          }
+          lines_for() {
+            files_for "$@" | xargs wc -l | awk 'END {print $1+0}'
+          }
+          files_count=$(files_for -name '*.go' | wc -l | tr -d ' ')
+          dirs_count=$(files_for -name '*.go' | xargs -n1 dirname | sort -u | wc -l | tr -d ' ')
+          lines_count=$(lines_for -name '*.go')
+          gooo_files_count=$(files_for -name '*.gooo' | wc -l | tr -d ' ')
+          gooo_dirs_count=$(files_for -name '*.gooo' | xargs -n1 dirname | sort -u | wc -l | tr -d ' ')
+          gooo_lines_count=$(lines_for -name '*.gooo')
+          before_digest="sha256:$(sha256sum < "$WORK_DIR/repository-before.bin" | awk '{print $1}')"
+          after_digest="sha256:$(sha256sum < "$WORK_DIR/repository-after-gooo.bin" | awk '{print $1}')"
+          jq -S -n \
+            --arg go_version "$(go env GOVERSION)" \
+            --arg before_digest "$before_digest" \
+            --arg after_digest "$after_digest" \
+            --argjson go_files "$files_count" --argjson go_dirs "$dirs_count" --argjson go_lines "$lines_count" \
+            --argjson gooo_files "$gooo_files_count" --argjson gooo_dirs "$gooo_dirs_count" --argjson gooo_lines "$gooo_lines_count" \
+            --argjson graph_wall_ms "$(cat "$WORK_DIR/gooo-graph-wall-ms")" \
+            --argjson graph_peak_rss_kib "$(cat "$WORK_DIR/gooo-graph-rss-kib")" \
+            '{schema:"gooo/infra-evidence/opentofu-service-contract-bridge/actions-evidence/v1",go_version:$go_version,
+              inventory:{root_readme_excluded:true,go:{lines:$go_lines,files:$go_files,dirs:$go_dirs},gooo:{lines:$gooo_lines,files:$gooo_files,dirs:$gooo_dirs},
+                per_file:[]},
+              gooo_graph:{executions:1,wall_ms:$graph_wall_ms,peak_rss_kib:$graph_peak_rss_kib,cache_hit:false,state:"CLOSED"},
+              build:{executions:0,wall_ms:null,peak_rss_kib:null,cache_hit:null,state:"UNKNOWN",unknown_class:"NOT_EXECUTED"},
+              test:{executions:0,wall_ms:null,peak_rss_kib:null,cache_hit:null,state:"UNKNOWN",unknown_class:"NOT_EXECUTED"},
+              authority:{repository_writes:0,local_test_executions:0,cross_project_required_gates:0,
+                opentofu_binary_executions:0,opentofu_init_executions:0,opentofu_plan_executions:0,
+                opentofu_apply_executions:0,opentofu_test_executions:0,opentofu_provider_accesses:0,
+                opentofu_remote_state_writes:0,opentofu_cloud_accesses:0,service_runtime_probes:0,
+                repository_edit_authorized:false,automatic_merge_authorized:false},
+              repository:{before_digest:$before_digest,after_digest:$after_digest,writes:0},
+              commands:{go_build:0,go_test:0,gofmt:0,go_vet:0,actionlint:0,tofu:0}}' > "$EVIDENCE_DIR/actions-evidence.json"
+          cp "$EVIDENCE_DIR/actions-evidence.json" "$WORK_DIR/actions-evidence.json"
+
+      - name: Generate normal, UNKNOWN, and REFUTED dossiers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR/normal-a" "$EVIDENCE_DIR/normal-b" "$EVIDENCE_DIR/unknown" "$EVIDENCE_DIR/refuted"
+          generator=scripts/generate-opentofu-service-contract-bridge.sh
+          bash "$generator" "$GITHUB_WORKSPACE" normal "$WORK_DIR/actions-evidence.json" "$EVIDENCE_DIR/normal-a" "$SUBJECT_SHA"
+          bash "$generator" "$GITHUB_WORKSPACE" normal "$WORK_DIR/actions-evidence.json" "$EVIDENCE_DIR/normal-b" "$SUBJECT_SHA"
+          bash "$generator" "$GITHUB_WORKSPACE" unknown "$WORK_DIR/actions-evidence.json" "$EVIDENCE_DIR/unknown" "$SUBJECT_SHA"
+          bash "$generator" "$GITHUB_WORKSPACE" refuted "$WORK_DIR/actions-evidence.json" "$EVIDENCE_DIR/refuted" "$SUBJECT_SHA"
+          for file in bundle.json mapping-ontology.json relations.ndjson causal-frontier.json counterexamples.json actions-evidence.json report.md manifest.json; do
+            cmp -s "$EVIDENCE_DIR/normal-a/$file" "$EVIDENCE_DIR/normal-b/$file"
+          done
+
+      - name: Evaluate bridge conformance and replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/evaluate-opentofu-service-contract-bridge.sh \
+            "$GITHUB_WORKSPACE" "$WORK_DIR/actions-evidence.json" \
+            "$EVIDENCE_DIR/normal-a" "$EVIDENCE_DIR/unknown" "$EVIDENCE_DIR/refuted" \
+            "$EVIDENCE_DIR/normal-a" "$EVIDENCE_DIR/normal-b" "$EVIDENCE_DIR/evaluation.json"
+          jq -e '.schema=="gooo/infra-evidence/opentofu-service-contract-bridge/evaluation/v1" and .decision=="CONFORMANT" and
+            .fixed_denominator.total==12 and .fixed_denominator.precedence==["REFUTED","UNKNOWN","CLOSED"] and
+            .fixed_denominator.cases==[
+              {scenario:"normal",closed:12,unknown:0,refuted:0},
+              {scenario:"unknown",closed:9,unknown:3,refuted:0},
+              {scenario:"refuted",closed:8,unknown:1,refuted:3}] and
+            .replay=={state:"CLOSED",comparisons:8,byte_identical:true} and
+            .improvement=={before_closed:null,after_closed:null,state:"UNKNOWN",reason:"EXACT_MATCHED_INTEGER_PAIR_MISSING"} and
+            .external_utility=={observed:0,total:1,state:"UNKNOWN",reason:"NO_EXTERNAL_USER_RECEIPT"} and
+            .incidents==[] and .authority.repository_writes==0 and .authority.local_test_executions==0 and
+            .authority.cross_project_required_gates==0 and .authority.opentofu_binary_executions==0' "$EVIDENCE_DIR/evaluation.json" >/dev/null
+          jq -r '"- decision: \(.decision)","- normal: \(.fixed_denominator.cases[0].closed) CLOSED / \(.fixed_denominator.cases[0].unknown) UNKNOWN / \(.fixed_denominator.cases[0].refuted) REFUTED","- unknown: \(.fixed_denominator.cases[1].closed) CLOSED / \(.fixed_denominator.cases[1].unknown) UNKNOWN / \(.fixed_denominator.cases[1].refuted) REFUTED","- refuted: \(.fixed_denominator.cases[2].closed) CLOSED / \(.fixed_denominator.cases[2].unknown) UNKNOWN / \(.fixed_denominator.cases[2].refuted) REFUTED","- replay: \(.replay.comparisons) byte-identical comparisons","- external utility: \(.external_utility.observed)/\(.external_utility.total) \(.external_utility.state)","- repository writes: \(.authority.repository_writes)","- OpenTofu binary executions: \(.authority.opentofu_binary_executions)","- improvement before/after: \(.improvement.before_closed // "null") / \(.improvement.after_closed // "null") (\(.improvement.state))"' "$EVIDENCE_DIR/evaluation.json" >> "$GITHUB_STEP_SUMMARY"
+          jq -r '"- OpenTofu release: \(.opentofu.tag) -> \(.opentofu.target_commit_sha)","- OpenTofu asset: \(.opentofu.assets.linux.name) sha256:\(.opentofu.assets.linux.sha256)","- Core Gooo release: \(.core.tag) -> \(.core.target_commit_sha)","- Core asset: \(.core.assets.linux.name) sha256:\(.core.assets.linux.sha256)"' "$EVIDENCE_DIR/evaluation.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce repository read-only effect
+        if: always()
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Upload bridge evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: opentofu-service-contract-bridge-${{ env.SUBJECT_SHA }}
+          if-no-files-found: warn
+          path: |
+            ${{ env.EVIDENCE_DIR }}
+            ${{ env.WORK_DIR }}/core-release.json
+            ${{ env.WORK_DIR }}/core-ref.json
+            ${{ env.WORK_DIR }}/core-tag.json
+            ${{ env.WORK_DIR }}/core/SHA256SUMS
+            ${{ env.WORK_DIR }}/opentofu-release.json
+            ${{ env.WORK_DIR }}/opentofu-ref.json
+            ${{ env.WORK_DIR }}/opentofu-tag.json
+            ${{ env.WORK_DIR }}/opentofu/tofu_1.12.6_SHA256SUMS

@@ -1,0 +1,83 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.12.6",
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_lambda_function.checkout",
+          "mode": "managed",
+          "type": "aws_lambda_function",
+          "name": "checkout",
+          "provider_name": "registry.opentofu.org/hashicorp/aws",
+          "schema_version": 0,
+          "values": {
+            "function_name": "checkout",
+            "handler": "main.Handler",
+            "runtime": "provided.al2023",
+            "memory_size": 256
+          }
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "aws_lambda_function.checkout",
+      "mode": "managed",
+      "type": "aws_lambda_function",
+      "name": "checkout",
+      "provider_name": "registry.opentofu.org/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "function_name": "checkout",
+          "handler": "main.Handler",
+          "runtime": "provided.al2023",
+          "memory_size": 256
+        },
+        "after_unknown": {},
+        "before_sensitive": {},
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "provider_config": {
+      "aws": {
+        "name": "aws",
+        "full_name": "registry.opentofu.org/hashicorp/aws",
+        "expressions": {}
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_lambda_function.checkout",
+          "mode": "managed",
+          "type": "aws_lambda_function",
+          "name": "checkout",
+          "provider_config_key": "aws",
+          "expressions": {
+            "function_name": {"constant_value": "checkout"},
+            "handler": {"constant_value": "main.Handler"},
+            "runtime": {"constant_value": "provided.al2023"},
+            "memory_size": {"constant_value": 256}
+          }
+        }
+      ]
+    }
+  },
+  "prior_state": {
+    "format_version": "1.0",
+    "terraform_version": "1.12.6",
+    "values": {
+      "root_module": {
+        "resources": []
+      }
+    }
+  },
+  "checks": [],
+  "errored": false
+}

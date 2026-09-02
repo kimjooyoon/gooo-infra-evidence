@@ -1,0 +1,40 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Checkout Service",
+    "version": "2026.08.19"
+  },
+  "paths": {
+    "/checkout": {
+      "post": {
+        "operationId": "createCheckout",
+        "summary": "Create a checkout",
+        "x-gooo-claim-id": "checkout.create",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/CheckoutRequest"}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Checkout created"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CheckoutRequest": {
+        "type": "object",
+        "required": ["order_id"],
+        "properties": {
+          "order_id": {"type": "string"}
+        }
+      }
+    }
+  }
+}

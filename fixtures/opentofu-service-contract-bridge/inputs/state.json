@@ -1,0 +1,25 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.12.6",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_lambda_function.checkout",
+          "mode": "managed",
+          "type": "aws_lambda_function",
+          "name": "checkout",
+          "provider_name": "registry.opentofu.org/hashicorp/aws",
+          "schema_version": 0,
+          "values": {
+            "function_name": "checkout",
+            "handler": "main.Handler",
+            "runtime": "provided.al2023",
+            "memory_size": 256,
+            "last_modified": "2026-08-19T00:00:00Z"
+          }
+        }
+      ]
+    }
+  }
+}

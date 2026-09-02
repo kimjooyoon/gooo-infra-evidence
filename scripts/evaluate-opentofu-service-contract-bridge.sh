@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 8 ]; then
+  printf 'usage: evaluate-opentofu-service-contract-bridge.sh ROOT ACTIONS_EVIDENCE NORMAL UNKNOWN REFUTED REPLAY_A REPLAY_B OUTPUT\n' >&2
+  exit 64
+fi
+
+root=$1
+actions_evidence=$2
+normal=$3
+unknown=$4
+refuted=$5
+replay_a=$6
+replay_b=$7
+output=$8
+denominator="$root/contracts/opentofu-service-contract-bridge-denominator-v1.json"
+ontology="$root/contracts/opentofu-service-contract-bridge-mapping-ontology-v1.json"
+
+for required in "$denominator" "$ontology" "$actions_evidence" \
+  "$normal/bundle.json" "$normal/mapping-ontology.json" "$normal/relations.ndjson" "$normal/causal-frontier.json" "$normal/counterexamples.json" "$normal/actions-evidence.json" "$normal/report.md" "$normal/manifest.json" \
+  "$unknown/bundle.json" "$unknown/mapping-ontology.json" "$unknown/relations.ndjson" "$unknown/causal-frontier.json" "$unknown/counterexamples.json" "$unknown/actions-evidence.json" "$unknown/report.md" "$unknown/manifest.json" \
+  "$refuted/bundle.json" "$refuted/mapping-ontology.json" "$refuted/relations.ndjson" "$refuted/causal-frontier.json" "$refuted/counterexamples.json" "$refuted/actions-evidence.json" "$refuted/report.md" "$refuted/manifest.json"; do
+  test -f "$required" || { printf 'required bridge evidence unavailable: %s\n' "$required" >&2; exit 66; }
+done
+
+jq -e '
+  .schema=="gooo/infra-evidence/opentofu-service-contract-bridge-denominator/v1" and
+  .target_cells==12 and (.cells|length)==12 and
+  (.proof_totals|map(.total)|add)==12 and (.indicator_totals|map(.total)|add)==12 and
+  .proof_totals==[{proof_choice:"FOUNDATION",total:4},{proof_choice:"COHERENCE",total:5},{proof_choice:"REGRESSION",total:3}] and
+  .indicator_totals==[{indicator_class:"DRIVER",total:4},{indicator_class:"OUTCOME",total:4},{indicator_class:"GUARDRAIL",total:4}]
+' "$denominator" >/dev/null
+jq -e '
+  .schema=="gooo/infra-evidence/opentofu-service-contract-bridge/mapping-ontology/v1" and
+  .owner=="GOOO" and .authority_scope=="MAPPING_ONLY" and
+  .name_similarity_mapping==false and (.relation_types|length)==5
+' "$ontology" >/dev/null
+jq -e '
+  .schema=="gooo/infra-evidence/opentofu-service-contract-bridge/actions-evidence/v1" and
+  .go_version=="go1.27.0" and .authority.repository_writes==0 and
+  .authority.local_test_executions==0 and .authority.cross_project_required_gates==0 and
+  .authority.opentofu_binary_executions==0 and .authority.opentofu_init_executions==0 and
+  .authority.opentofu_plan_executions==0 and .authority.opentofu_apply_executions==0 and
+  .authority.opentofu_test_executions==0 and .authority.opentofu_provider_accesses==0 and
+  .authority.opentofu_remote_state_writes==0 and
+  .build=={executions:0,wall_ms:null,peak_rss_kib:null,cache_hit:null,state:"UNKNOWN",unknown_class:"NOT_EXECUTED"} and
+  .test=={executions:0,wall_ms:null,peak_rss_kib:null,cache_hit:null,state:"UNKNOWN",unknown_class:"NOT_EXECUTED"} and
+  .inventory.root_readme_excluded==true and all(.inventory.per_file[]; .path!="README.md")
+' "$actions_evidence" >/dev/null
+
+check_manifest() {
+  local directory=$1
+  jq -e '
+    .schema=="gooo/infra-evidence/opentofu-service-contract-bridge/manifest/v1" and
+    (.files|length)==7 and .manifest_covers=="all listed files except manifest.json"
+  ' "$directory/manifest.json" >/dev/null
+  while IFS=$'\t' read -r file expected; do
+    test "$expected" = "$(sha256sum "$directory/$file" | awk '{print $1}')"
+  done < <(jq -r '.files[]|[.path,.sha256]|@tsv' "$directory/manifest.json")
+}
+
+check_bundle() {
+  local directory=$1 scenario=$2 decision=$3 closed=$4 unknown=$5 refuted=$6 relations=$7 frontier=$8
+  jq -e \
+    --arg scenario "$scenario" --arg decision "$decision" \
+    --argjson closed "$closed" --argjson unknown "$unknown" --argjson refuted "$refuted" \
+    --argjson relations "$relations" --argjson frontier "$frontier" --slurpfile d "$denominator" '
+    .schema=="gooo/infra-evidence/opentofu-service-contract-bridge/bundle/v1" and
+    .scenario==$scenario and .decision==$decision and
+    .denominator.total==12 and .denominator.closed==$closed and .denominator.unknown==$unknown and .denominator.refuted==$refuted and
+    .summary==(.summary|. + {total_cells:12,closed_cells:$closed,unknown_cells:$unknown,refuted_cells:$refuted,repository_writes:0,local_test_executions:0,cross_project_required_gates:0,opentofu_binary_executions:0,provider_accesses:0,remote_state_writes:0,relations_observed:$relations,causal_frontier_observed:$frontier,counterexamples_observed:3}) and
+    (.cells|length)==12 and ([.cells[]|select(.state=="CLOSED")]|length)==$closed and
+    ([.cells[]|select(.state=="UNKNOWN")]|length)==$unknown and ([.cells[]|select(.state=="REFUTED")]|length)==$refuted and
+    all(.cells[]; if .state=="UNKNOWN" then
+      (.stage!=null and .step!=null and .reason!=null and .unknown_class!=null and .next_operation!=null and (.blocked_by|type)=="array")
+      elif .state=="REFUTED" then (.stage!=null and .step!=null and .reason!=null and .unknown_class==null and .next_operation!=null and (.blocked_by|type)=="array")
+      else (.unknown_class==null and .next_operation=="NONE" and (.blocked_by|length)==0) end) and
+    ([.cells[]|select(.state=="UNKNOWN")|[.stage,.step,.reason,.unknown_class,.next_operation,.blocked_by]]|all(length==6)) and
+    .ontology.owner=="GOOO" and .inputs.opentofu_plan.engine=="OPENTOFU" and .inputs.opentofu_plan.representation=="PLAN" and
+    .inputs.openapi.representation=="DOCUMENT" and .inputs.mapping.authority=="GOOO_OWNED_EXPLICIT_MAPPING" and
+    .authority.repository_writes==0 and .authority.local_test_executions==0 and .authority.cross_project_required_gates==0 and
+    .authority.opentofu_apply_authorized==false and .authority.provider_install_authorized==false and .authority.remote_state_write_authorized==false and
+    .improvement.state=="UNKNOWN" and .improvement.before_closed==null and .improvement.after_closed==null and
+    .external_utility.observed==0 and .external_utility.total==1 and .external_utility.state=="UNKNOWN" and
+    .denominator.proof_totals==$d[0].proof_totals and .denominator.indicator_totals==$d[0].indicator_totals
+  ' "$directory/bundle.json" >/dev/null
+  test "$(wc -l < "$directory/relations.ndjson" | tr -d ' ')" = "$relations"
+  test "$(jq 'length' "$directory/causal-frontier.json")" = "$frontier"
+  cmp -s "$directory/mapping-ontology.json" "$ontology"
+  grep -Fq '# OpenTofu service-contract bridge dossier' "$directory/report.md"
+  grep -Fq '## Exact mapping' "$directory/report.md"
+  grep -Fq '## Causal frontier' "$directory/report.md"
+  grep -Fq '## Counterexamples' "$directory/report.md"
+  grep -Fq '## Actions evidence' "$directory/report.md"
+  grep -Fq '## Non-claims' "$directory/report.md"
+  if grep -Eiq 'score|percentage|%' "$directory/report.md"; then
+    printf 'aggregate score or percentage appeared in report: %s\n' "$directory/report.md" >&2
+    exit 67
+  fi
+}
+
+check_manifest "$normal"
+check_manifest "$unknown"
+check_manifest "$refuted"
+check_bundle "$normal" normal CLOSED 12 0 0 5 0
+check_bundle "$unknown" unknown UNKNOWN 9 3 0 4 2
+check_bundle "$refuted" refuted FAIL_CLOSED 8 1 3 0 1
+
+for file in bundle.json mapping-ontology.json relations.ndjson causal-frontier.json counterexamples.json actions-evidence.json report.md manifest.json; do
+  cmp -s "$replay_a/$file" "$replay_b/$file"
+  cmp -s "$normal/$file" "$replay_a/$file"
+done
+
+subject_sha=$(jq -r '.subject_sha' "$normal/bundle.json")
+jq -S -n \
+  --arg subject_sha "$subject_sha" --slurpfile normal "$normal/bundle.json" --slurpfile unknown "$unknown/bundle.json" \
+  --slurpfile refuted "$refuted/bundle.json" --slurpfile actions "$actions_evidence" \
+  '{schema:"gooo/infra-evidence/opentofu-service-contract-bridge/evaluation/v1",decision:"CONFORMANT",subject_sha:$subject_sha,
+    fixed_denominator:{total:12,precedence:["REFUTED","UNKNOWN","CLOSED"],cases:[
+      {scenario:"normal",closed:$normal[0].denominator.closed,unknown:$normal[0].denominator.unknown,refuted:$normal[0].denominator.refuted},
+      {scenario:"unknown",closed:$unknown[0].denominator.closed,unknown:$unknown[0].denominator.unknown,refuted:$unknown[0].denominator.refuted},
+      {scenario:"refuted",closed:$refuted[0].denominator.closed,unknown:$refuted[0].denominator.unknown,refuted:$refuted[0].denominator.refuted}]},
+    proof_totals:$normal[0].denominator.proof_totals,indicator_totals:$normal[0].denominator.indicator_totals,
+    replay:{state:"CLOSED",comparisons:8,byte_identical:true},release_lock:$normal[0].release_lock,
+    actions_evidence:{go_version:$actions[0].go_version,inventory:$actions[0].inventory,build:$actions[0].build,test:$actions[0].test,authority:$actions[0].authority},
+    improvement:{before_closed:null,after_closed:null,state:"UNKNOWN",reason:"EXACT_MATCHED_INTEGER_PAIR_MISSING"},
+    external_utility:{observed:0,total:1,state:"UNKNOWN",reason:"NO_EXTERNAL_USER_RECEIPT"},incidents:[],
+    authority:{repository_writes:0,local_test_executions:0,cross_project_required_gates:0,opentofu_binary_executions:0,opentofu_init_executions:0,opentofu_plan_executions:0,opentofu_apply_executions:0,opentofu_test_executions:0,provider_accesses:0,remote_state_writes:0,operational_refuted_executions:0}}' > "$output"

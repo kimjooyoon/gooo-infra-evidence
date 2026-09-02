@@ -1,0 +1,8 @@
+{
+  "schema": "gooo/infra-evidence/opentofu-service-contract-bridge/case/v1",
+  "name": "refuted",
+  "state_input": null,
+  "mapping_input": "cases/refuted/mapping.json",
+  "expected_mode": "REFUTED",
+  "refuted_boundary": "EXPLICIT_MAPPING"
+}
