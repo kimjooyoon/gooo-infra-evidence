@@ -42,6 +42,7 @@ jobs:
           set -euo pipefail
           rm -rf "$WORK_DIR" "$EVIDENCE_DIR"
           mkdir -p "$WORK_DIR/core" "$WORK_DIR/opentofu" "$WORK_DIR/core/bin" "$EVIDENCE_DIR"
+          git status --porcelain=v1 -z --untracked-files=all > "$WORK_DIR/repository-before.bin"
           lock=contracts/opentofu-service-contract-bridge-release-lock-v1.json
 
           verify_release_identity() {
