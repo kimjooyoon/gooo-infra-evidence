@@ -67,7 +67,7 @@ if test -f "$metadata"; then
 fi
 
 case_key="${scenario}_case"
-case_path=$(jq -r '.inputs.files[$case_key].path' "$lock")
+case_path=$(jq -r --arg key "$case_key" '.inputs.files[$key].path' "$lock")
 case_expected=$(jq -r --arg key "$case_key" '.inputs.files[$key].sha256' "$lock")
 test "$case_path" = "cases/$scenario/case.json"
 test "$case_expected" = "$(sha256sum "$base/$case_path" | awk '{print $1}')"
