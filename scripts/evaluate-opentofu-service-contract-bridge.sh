@@ -69,7 +69,10 @@ check_bundle() {
     .schema=="gooo/infra-evidence/opentofu-service-contract-bridge/bundle/v1" and
     .scenario==$scenario and .decision==$decision and
     .denominator.total==12 and .denominator.closed==$closed and .denominator.unknown==$unknown and .denominator.refuted==$refuted and
-    .summary==(.summary|. + {total_cells:12,closed_cells:$closed,unknown_cells:$unknown,refuted_cells:$refuted,repository_writes:0,local_test_executions:0,cross_project_required_gates:0,opentofu_binary_executions:0,provider_accesses:0,remote_state_writes:0,relations_observed:$relations,causal_frontier_observed:$frontier,counterexamples_observed:3}) and
+    .summary.total_cells==12 and .summary.closed_cells==$closed and .summary.unknown_cells==$unknown and .summary.refuted_cells==$refuted and
+    .summary.repository_writes==0 and .summary.local_test_executions==0 and .summary.cross_project_required_gates==0 and
+    .summary.opentofu_binary_executions==0 and .summary.provider_accesses==0 and .summary.remote_state_writes==0 and
+    .summary.relations_observed==$relations and .summary.causal_frontier_observed==$frontier and .summary.counterexamples_observed==3 and
     (.cells|length)==12 and ([.cells[]|select(.state=="CLOSED")]|length)==$closed and
     ([.cells[]|select(.state=="UNKNOWN")]|length)==$unknown and ([.cells[]|select(.state=="REFUTED")]|length)==$refuted and
     all(.cells[]; if .state=="UNKNOWN" then
