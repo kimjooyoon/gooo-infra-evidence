@@ -55,13 +55,18 @@ jobs:
             expected_target=$(jq -r --arg key "$key" '.[$key].target_commit_sha' "$lock")
             gh api "repos/$repository/releases/tags/$tag" > "$WORK_DIR/$key-release.json"
             gh api "repos/$repository/git/ref/tags/$tag" > "$WORK_DIR/$key-ref.json"
-            gh api "repos/$repository/git/tags/$expected_tag_object" > "$WORK_DIR/$key-tag.json"
             jq -e --arg tag "$tag" --argjson id "$release_id" --argjson prerelease "$expected_prerelease" \
-              --arg tag_object "$expected_tag_object" --arg target "$expected_target" \
-              --slurpfile ref "$WORK_DIR/$key-ref.json" --slurpfile tag_obj "$WORK_DIR/$key-tag.json" \
-              '.tag_name==$tag and .id==$id and .draft==false and .prerelease==$prerelease and
-               $ref[0].object.type=="tag" and $ref[0].object.sha==$tag_object and
-               $tag_obj[0].object.sha==$target' "$WORK_DIR/$key-release.json" >/dev/null
+              '.tag_name==$tag and .id==$id and .draft==false and .prerelease==$prerelease' "$WORK_DIR/$key-release.json" >/dev/null
+            if [ -n "$expected_tag_object" ]; then
+              gh api "repos/$repository/git/tags/$expected_tag_object" > "$WORK_DIR/$key-tag.json"
+              jq -e --arg tag_object "$expected_tag_object" --arg target "$expected_target" \
+                --slurpfile ref "$WORK_DIR/$key-ref.json" --slurpfile tag_obj "$WORK_DIR/$key-tag.json" \
+                '$ref[0].object.type=="tag" and $ref[0].object.sha==$tag_object and $tag_obj[0].object.sha==$target' \
+                "$WORK_DIR/$key-release.json" >/dev/null
+            else
+              jq -e --arg target "$expected_target" --slurpfile ref "$WORK_DIR/$key-ref.json" \
+                '$ref[0].object.type=="commit" and $ref[0].object.sha==$target' "$WORK_DIR/$key-release.json" >/dev/null
+            fi
           }
 
           verify_asset() {

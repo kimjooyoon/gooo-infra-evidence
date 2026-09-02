@@ -4,7 +4,7 @@
     "repository": "kimjooyoon/meta-ontology-go",
     "tag": "v0.4.0-dev",
     "release_id": 378565653,
-    "tag_object_sha": "b0f6d7efcd6f6a2f8da177781a2cd8cef9defa31",
+    "tag_object_sha": null,
     "target_commit_sha": "57ac9ec486bbca69e447a8eba94e0ce3cd03ced0",
     "prerelease": true,
     "assets": {
