@@ -92,7 +92,7 @@ check_bundle() {
   ' "$directory/bundle.json" >/dev/null
   test "$(wc -l < "$directory/relations.ndjson" | tr -d ' ')" = "$relations"
   test "$(jq 'length' "$directory/causal-frontier.json")" = "$frontier"
-  cmp -s "$directory/mapping-ontology.json" "$ontology"
+  cmp -s "$directory/mapping-ontology.json" <(jq -S . "$ontology")
   grep -Fq '# OpenTofu service-contract bridge dossier' "$directory/report.md"
   grep -Fq '## Exact mapping' "$directory/report.md"
   grep -Fq '## Causal frontier' "$directory/report.md"
