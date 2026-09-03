@@ -285,7 +285,7 @@ jobs:
                 test:{execution_state:"NOT_EXECUTED",cache_state:"NOT_APPLICABLE",wall_ms:null,peak_rss_kib:null,executed_count:0,reused_count:0,skipped_count:0}},
               build:{execution_state:"NOT_EXECUTED",cache_state:"NOT_APPLICABLE",wall_ms:null,peak_rss_kib:null,executed_count:0,reused_count:0,skipped_count:0},
               test:{execution_state:"NOT_EXECUTED",cache_state:"NOT_APPLICABLE",wall_ms:null,peak_rss_kib:null,executed_count:0,reused_count:0,skipped_count:0},
-              prior_evidence_reuse:{policy:"REUSE_ONLY_ON_EXACT_SUBJECT_SOURCE_TOOLCHAIN_COMMAND_INPUT_IDENTITY",prior_evidence_used:false,reused_count:0,
+              prior_evidence_reuse:{policy:"REUSE_ONLY_ON_EXACT_SUBJECT_SOURCE_TOOLCHAIN_COMMAND_INPUT_IDENTITY",exact_identity_fields:["subject_sha","source_tree_sha","toolchain_digest","command_digest","input_digest"],prior_evidence_used:false,reused_count:0,
                 current_identity:{subject_sha:$subject_sha,source_tree_sha:$source_tree_sha,toolchain_digest:$toolchain_identity_digest,command_digest:$command_identity_digest,input_digest:$input_identity_digest}},
               iac_engine_identity:{iac_engine:$lock[0].opentofu.iac_engine,version:$lock[0].opentofu.iac_engine_version,release_repository:$lock[0].opentofu.repository,release_tag:$lock[0].opentofu.tag,release_id:$lock[0].opentofu.release_id,release_target_commit_sha:$lock[0].opentofu.target_commit_sha,archive_sha256:$iac_engine_archive_sha,binary_sha256:$iac_engine_binary_sha,receipt:{kind:"VERSION_JSON",command:$lock[0].opentofu.identity_receipt_command,sha256:$iac_engine_receipt_sha}},
               activity_cell_binding:{schema:$binding[0].schema,exact:$binding[0].exact,denominator_total:$binding[0].denominator_total,graph_activity_total:$binding[0].graph_activity_total,resolution_total:$binding[0].resolution_total,comparisons:($binding[0].comparisons|length),digest:$activity_binding_digest},
@@ -295,7 +295,7 @@ jobs:
                 opentofu_remote_state_writes:0,opentofu_cloud_accesses:0,service_runtime_probes:0,
                 network_side_effects:0,network_writes:0,sibling_checkouts:0,same_pr_evidence_cycles:0,
                 repository_edit_authorized:false,automatic_merge_authorized:false},
-              repository:{subject_sha:$subject_sha,source_tree_sha:$source_tree_sha,checkout_identity:"EXACT_SUBJECT_SHA",before_digest:$before_digest,after_digest:$after_digest,writes:0},
+              repository:{subject_sha:$subject_sha,source_tree_sha:$source_tree_sha,checkout_identity:"EXACT_SUBJECT_SHA",before_digest:$before_digest,after_digest:$after_digest,writes:0,sibling_checkouts:0},
               release_evidence:{path:"release-evidence.json",digest:$release_evidence_digest},
               commands:{go_build:0,go_test:0,gofmt:0,go_vet:0,actionlint:0,tofu:1,tofu_version:1,gooo_version:1,gooo_check:2,gooo_graph_dump:1,gooo_resolve_activity:12}}' > "$EVIDENCE_DIR/actions-evidence.json"
           cp "$EVIDENCE_DIR/actions-evidence.json" "$WORK_DIR/actions-evidence.json"

@@ -120,7 +120,7 @@ check_bundle() {
     .iac_engine_identity.iac_engine=="OPENTOFU" and .iac_engine_identity.version=="1.12.6" and
     .iac_engine_identity.release_repository=="opentofu/opentofu" and .iac_engine_identity.release_tag=="v1.12.6" and
     (.iac_engine_identity.archive_sha256|length)==64 and (.iac_engine_identity.binary_sha256|length)==64 and
-    .iac_engine_identity.receipt.kind=="VERSION_JSON" and (.iac_engine_identity.receipt.sha256|length)==71 and
+    .iac_engine_identity.receipt.kind=="VERSION_JSON" and (.iac_engine_identity.receipt.sha256|test("^[0-9a-f]{64}$")) and
     .iac_engine_identity==$actions[0].iac_engine_identity and
     .activity_cell_binding.exact==true and .activity_cell_binding.denominator_total==12 and .activity_cell_binding.graph_activity_total==12 and .activity_cell_binding.resolution_total==12 and .activity_cell_binding.comparisons==12 and
     .prior_evidence_reuse.policy=="REUSE_ONLY_ON_EXACT_SUBJECT_SOURCE_TOOLCHAIN_COMMAND_INPUT_IDENTITY" and .prior_evidence_reuse.prior_evidence_used==false and .prior_evidence_reuse.reused_count==0 and

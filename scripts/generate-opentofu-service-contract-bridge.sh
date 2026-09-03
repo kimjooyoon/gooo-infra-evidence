@@ -162,7 +162,7 @@ jq -e --arg subject_sha "$subject_sha" '
   .iac_engine_identity.release_repository=="opentofu/opentofu" and .iac_engine_identity.release_tag=="v1.12.6" and
   .iac_engine_identity.archive_sha256=="5dc43da4f750f33873dc25e94587128709e819e544b7be9016b255316153c3a8" and
   .iac_engine_identity.binary_sha256=="8f95cbe1523ef7b7913773634a6d6ac94c38f3c8eadba2e18b1e5b01567561ad" and
-  .iac_engine_identity.receipt.kind=="VERSION_JSON" and (.iac_engine_identity.receipt.sha256|length)==71 and
+  .iac_engine_identity.receipt.kind=="VERSION_JSON" and (.iac_engine_identity.receipt.sha256|test("^[0-9a-f]{64}$")) and
   .activity_cell_binding.exact==true and .activity_cell_binding.denominator_total==12 and
   .activity_cell_binding.graph_activity_total==12 and .activity_cell_binding.resolution_total==12 and .activity_cell_binding.comparisons==12
 ' "$actions_evidence" >/dev/null
