@@ -1,0 +1,33 @@
+{
+  "schema": "gooo/infra-evidence/opentofu-service-contract-bridge/mapping-ontology/v1",
+  "owner": "GOOO",
+  "authority_scope": "MAPPING_ONLY",
+  "identity_policy": "EXACT_TYPED_IDENTITY_REQUIRED",
+  "name_similarity_mapping": false,
+  "decision_precedence": ["REFUTED", "UNKNOWN", "CLOSED"],
+  "node_types": [
+    "OpenTofuResource",
+    "ServiceOperation",
+    "ServiceClaim",
+    "OpenTofuPlanEvidence",
+    "OpenTofuStateEvidence",
+    "OpenAPIContractEvidence"
+  ],
+  "relation_types": [
+    {"id": "PROVISIONS", "subject": "OpenTofuResource", "object": "ServiceOperation", "basis": "EXPLICIT_TYPED_IDENTITY"},
+    {"id": "ASSERTS", "subject": "ServiceOperation", "object": "ServiceClaim", "basis": "EXPLICIT_TYPED_IDENTITY"},
+    {"id": "SUPPORTED_BY", "subject": "ServiceClaim", "object": "OpenTofuPlanEvidence", "basis": "EXACT_JSON_POINTER_AND_DIGEST"},
+    {"id": "SUPPORTED_BY", "subject": "ServiceClaim", "object": "OpenTofuStateEvidence", "basis": "EXACT_JSON_POINTER_AND_DIGEST"},
+    {"id": "DECLARED_BY", "subject": "ServiceClaim", "object": "OpenAPIContractEvidence", "basis": "EXACT_OPERATION_ID_AND_DIGEST"}
+  ],
+  "unknown_policy": {
+    "required_fields": ["stage", "step", "reason", "unknown_class", "next_operation", "blocked_by"],
+    "direct_missing_precedes_dependency_blocked": true,
+    "no_inference_from_names": true
+  },
+  "refuted_policy": {
+    "conflict_precedes_unknown": true,
+    "identity_conflict_is_refuted": true,
+    "authority_escalation_is_refuted": true
+  }
+}

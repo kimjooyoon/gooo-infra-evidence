@@ -1,0 +1,198 @@
+{
+  "schema": "gooo/infra-evidence/opentofu-service-contract-bridge-denominator/v1",
+  "id": "gooo://denominator/opentofu-service-contract-bridge/v1",
+  "version": 1,
+  "target_cells": 12,
+  "decision_precedence": ["REFUTED", "UNKNOWN", "CLOSED"],
+  "unknown_coordinate_fields": [
+    "stage",
+    "step",
+    "reason",
+    "unknown_class",
+    "next_operation",
+    "blocked_by"
+  ],
+  "proof_totals": [
+    {"proof_choice": "FOUNDATION", "total": 4},
+    {"proof_choice": "COHERENCE", "total": 4},
+    {"proof_choice": "REGRESSION", "total": 4}
+  ],
+  "indicator_totals": [
+    {"indicator_class": "DRIVER", "total": 4},
+    {"indicator_class": "OUTCOME", "total": 4},
+    {"indicator_class": "GUARDRAIL", "total": 4}
+  ],
+  "cells": [
+    {
+      "ordinal": 1,
+      "id": "INPUT_IDENTITY",
+      "activity": "DeclareBridgeInputIdentity",
+      "stage": "INPUT",
+      "step": "DECLARE_IMMUTABLE_INPUT_IDENTITY",
+      "proof_choice": "FOUNDATION",
+      "indicator_class": "DRIVER",
+      "closed_reason": "IMMUTABLE_INPUT_IDENTITY_DECLARED",
+      "next_operation": "PROVIDE_IMMUTABLE_INPUT_LOCK",
+      "depends_on": []
+    },
+    {
+      "ordinal": 2,
+      "id": "OPENTOFU_PLAN",
+      "activity": "ObserveOpenTofuPlanJSON",
+      "stage": "OPENTOFU_PLAN",
+      "step": "OBSERVE_OPENTOFU_PLAN_JSON",
+      "proof_choice": "FOUNDATION",
+      "indicator_class": "DRIVER",
+      "closed_reason": "OPENTOFU_PLAN_JSON_OBSERVED",
+      "next_operation": "PROVIDE_IMMUTABLE_OPENTOFU_PLAN_JSON",
+      "depends_on": ["INPUT_IDENTITY"]
+    },
+    {
+      "ordinal": 3,
+      "id": "OPENTOFU_STATE",
+      "activity": "ObserveOpenTofuStateJSON",
+      "stage": "OPENTOFU_STATE",
+      "step": "OBSERVE_OPENTOFU_STATE_JSON",
+      "proof_choice": "FOUNDATION",
+      "indicator_class": "DRIVER",
+      "closed_reason": "OPENTOFU_STATE_JSON_OBSERVED",
+      "next_operation": "PROVIDE_IMMUTABLE_OPENTOFU_STATE_JSON",
+      "depends_on": ["INPUT_IDENTITY"]
+    },
+    {
+      "ordinal": 4,
+      "id": "OPENAPI_CONTRACT",
+      "activity": "ObserveOpenAPIContractDigest",
+      "stage": "OPENAPI",
+      "step": "OBSERVE_OPENAPI_DOCUMENT_DIGEST",
+      "proof_choice": "FOUNDATION",
+      "indicator_class": "DRIVER",
+      "closed_reason": "OPENAPI_DOCUMENT_DIGEST_OBSERVED",
+      "next_operation": "PROVIDE_OPENAPI_DOCUMENT_DIGEST",
+      "depends_on": ["INPUT_IDENTITY"]
+    },
+    {
+      "ordinal": 5,
+      "id": "EXPLICIT_MAPPING",
+      "activity": "BindExplicitResourceOperationMapping",
+      "stage": "MAPPING",
+      "step": "BIND_EXPLICIT_RESOURCE_OPERATION_MAPPING",
+      "proof_choice": "REGRESSION",
+      "indicator_class": "OUTCOME",
+      "closed_reason": "EXPLICIT_TYPED_MAPPING_BOUND",
+      "next_operation": "PROVIDE_EXPLICIT_TYPED_MAPPING",
+      "depends_on": ["OPENTOFU_PLAN", "OPENAPI_CONTRACT"]
+    },
+    {
+      "ordinal": 6,
+      "id": "RESOURCE_OPERATION_RELATIONS",
+      "activity": "ProjectResourceOperationRelations",
+      "stage": "RELATIONS",
+      "step": "PROJECT_RESOURCE_OPERATION_RELATIONS",
+      "proof_choice": "COHERENCE",
+      "indicator_class": "OUTCOME",
+      "closed_reason": "RESOURCE_OPERATION_RELATIONS_PROJECTED",
+      "next_operation": "PROVIDE_UNAMBIGUOUS_RESOURCE_OPERATION_EVIDENCE",
+      "depends_on": ["EXPLICIT_MAPPING", "OPENTOFU_STATE"]
+    },
+    {
+      "ordinal": 7,
+      "id": "CLAIM_EVIDENCE_BINDING",
+      "activity": "BindServiceClaimEvidence",
+      "stage": "CLAIMS",
+      "step": "BIND_SERVICE_CLAIM_TO_EVIDENCE",
+      "proof_choice": "COHERENCE",
+      "indicator_class": "OUTCOME",
+      "closed_reason": "SERVICE_CLAIM_EVIDENCE_RELATIONS_BOUND",
+      "next_operation": "PROVIDE_TYPED_CLAIM_EVIDENCE_RELATIONS",
+      "depends_on": ["RESOURCE_OPERATION_RELATIONS", "OPENAPI_CONTRACT", "OPENTOFU_PLAN", "OPENTOFU_STATE"]
+    },
+    {
+      "ordinal": 8,
+      "id": "CAUSAL_FRONTIER",
+      "activity": "PreserveCausalFrontier",
+      "stage": "CAUSAL_FRONTIER",
+      "step": "PRESERVE_UNRESOLVED_CAUSAL_FRONTIER",
+      "proof_choice": "COHERENCE",
+      "indicator_class": "GUARDRAIL",
+      "closed_reason": "CAUSAL_FRONTIER_EXPLICITLY_PRESERVED",
+      "next_operation": "RESOLVE_RECORDED_CAUSAL_FRONTIER",
+      "depends_on": ["RESOURCE_OPERATION_RELATIONS", "CLAIM_EVIDENCE_BINDING"]
+    },
+    {
+      "ordinal": 9,
+      "id": "CONFIGURATION_PROJECTION",
+      "activity": "ProjectConfigurationEvidence",
+      "stage": "OPENTOFU_CONFIGURATION",
+      "step": "PROJECT_PLAN_CONFIGURATION_EVIDENCE",
+      "proof_choice": "COHERENCE",
+      "indicator_class": "OUTCOME",
+      "closed_reason": "OPENTOFU_CONFIGURATION_EVIDENCE_PROJECTED",
+      "next_operation": "PROVIDE_PLAN_CONFIGURATION_REPRESENTATION",
+      "depends_on": ["OPENTOFU_PLAN"]
+    },
+    {
+      "ordinal": 10,
+      "id": "COUNTEREXAMPLES",
+      "activity": "PreserveCounterexamples",
+      "stage": "REFUTATION",
+      "step": "PRESERVE_CONTRADICTION_COUNTEREXAMPLES",
+      "proof_choice": "REGRESSION",
+      "indicator_class": "GUARDRAIL",
+      "closed_reason": "COUNTEREXAMPLES_PRESERVED",
+      "next_operation": "RESTORE_CONTRADICTORY_INPUT_IDENTITY",
+      "depends_on": ["EXPLICIT_MAPPING", "CAUSAL_FRONTIER"]
+    },
+    {
+      "ordinal": 11,
+      "id": "DETERMINISTIC_REPLAY",
+      "activity": "VerifyDossierReplay",
+      "stage": "REPLAY",
+      "step": "VERIFY_DETERMINISTIC_DOSSIER_REPLAY",
+      "proof_choice": "REGRESSION",
+      "indicator_class": "GUARDRAIL",
+      "closed_reason": "DOSSIER_REPLAY_BYTE_IDENTICAL",
+      "next_operation": "REPLAY_WITH_IDENTICAL_IMMUTABLE_INPUTS",
+      "depends_on": ["CAUSAL_FRONTIER", "COUNTEREXAMPLES"]
+    },
+    {
+      "ordinal": 12,
+      "id": "READ_ONLY_ACTIONS",
+      "activity": "PreserveReadOnlyActionsAuthority",
+      "stage": "AUTHORITY",
+      "step": "PRESERVE_READ_ONLY_ACTIONS_AUTHORITY",
+      "proof_choice": "REGRESSION",
+      "indicator_class": "GUARDRAIL",
+      "closed_reason": "READ_ONLY_ACTIONS_AUTHORITY_PRESERVED",
+      "next_operation": "COMPARE_ACTIONS_REPOSITORY_SNAPSHOTS",
+      "depends_on": ["INPUT_IDENTITY", "DETERMINISTIC_REPLAY"]
+    }
+  ],
+  "cases": [
+    {"name": "normal", "decision": "CLOSED", "closed": 12, "unknown": 0, "refuted": 0},
+    {"name": "unknown", "decision": "UNKNOWN", "closed": 9, "unknown": 3, "refuted": 0},
+    {"name": "refuted", "decision": "REFUTED", "closed": 8, "unknown": 1, "refuted": 3}
+  ],
+  "external_utility": {
+    "observed": 0,
+    "total": 1,
+    "state": "UNKNOWN",
+    "stage": "UTILITY",
+    "step": "OBSERVE_EXTERNAL_USER_UTILITY",
+    "reason": "NO_EXTERNAL_USER_RECEIPT",
+    "unknown_class": "NO_EXTERNAL_USER_EVIDENCE",
+    "next_operation": "PROVIDE_EXTERNAL_USER_RECEIPT",
+    "blocked_by": []
+  },
+  "improvement": {
+    "before_closed": null,
+    "after_closed": null,
+    "state": "UNKNOWN",
+    "stage": "IMPROVEMENT",
+    "step": "MATCH_EXACT_BEFORE_AFTER_INTEGER_PAIR",
+    "reason": "EXACT_MATCHED_INTEGER_PAIR_MISSING",
+    "unknown_class": "EXACT_BEFORE_AFTER_PAIR_MISSING",
+    "next_operation": "PROVIDE_EXACT_SAME_DIGEST_BEFORE_AFTER_PAIR",
+    "blocked_by": []
+  }
+}

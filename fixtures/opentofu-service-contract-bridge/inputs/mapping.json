@@ -1,0 +1,59 @@
+{
+  "schema": "gooo/infra-evidence/opentofu-service-contract-bridge/mapping/v1",
+  "authority": "GOOO_OWNED_EXPLICIT_MAPPING",
+  "resource_to_operation": [
+    {
+      "resource_identity": {
+        "address": "aws_lambda_function.checkout",
+        "mode": "managed",
+        "type": "aws_lambda_function",
+        "name": "checkout",
+        "provider_name": "registry.opentofu.org/hashicorp/aws"
+      },
+      "operation_identity": {
+        "method": "POST",
+        "path": "/checkout",
+        "operation_id": "createCheckout"
+      },
+      "relation": "PROVISIONS",
+      "mapping_basis": "EXPLICIT_TYPED_IDENTITY"
+    }
+  ],
+  "operation_to_claim": [
+    {
+      "operation_identity": {
+        "method": "POST",
+        "path": "/checkout",
+        "operation_id": "createCheckout"
+      },
+      "claim_identity": {
+        "claim_id": "checkout.create",
+        "claim_kind": "SERVICE_BEHAVIOR"
+      },
+      "relation": "ASSERTS"
+    }
+  ],
+  "claim_evidence": [
+    {
+      "claim_id": "checkout.create",
+      "evidence_kind": "OPENTOFU_PLAN",
+      "representation": "PLAN",
+      "json_pointer": "/resource_changes/0/change/after",
+      "identity_field": "aws_lambda_function.checkout"
+    },
+    {
+      "claim_id": "checkout.create",
+      "evidence_kind": "OPENTOFU_STATE",
+      "representation": "STATE",
+      "json_pointer": "/values/root_module/resources/0",
+      "identity_field": "aws_lambda_function.checkout"
+    },
+    {
+      "claim_id": "checkout.create",
+      "evidence_kind": "OPENAPI",
+      "representation": "DOCUMENT",
+      "json_pointer": "/paths/~1checkout/post",
+      "identity_field": "createCheckout"
+    }
+  ]
+}

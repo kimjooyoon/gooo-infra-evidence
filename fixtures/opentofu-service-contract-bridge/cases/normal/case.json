@@ -1,0 +1,7 @@
+{
+  "schema": "gooo/infra-evidence/opentofu-service-contract-bridge/case/v1",
+  "name": "normal",
+  "state_input": "inputs/state.json",
+  "mapping_input": "inputs/mapping.json",
+  "expected_mode": "CLOSED"
+}

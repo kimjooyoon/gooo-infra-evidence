@@ -1,0 +1,8 @@
+{
+  "schema": "gooo/infra-evidence/opentofu-service-contract-bridge/case/v1",
+  "name": "unknown",
+  "state_input": null,
+  "mapping_input": "inputs/mapping.json",
+  "expected_mode": "UNKNOWN",
+  "unknown_boundary": "OPENTOFU_STATE"
+}

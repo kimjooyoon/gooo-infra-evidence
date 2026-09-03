@@ -1,0 +1,29 @@
+package opentofuservicecontractbridge
+namespace opentofuservicecontractbridge
+
+entity BridgeInputReceipt id "infra://opentofu-service-contract-bridge/input-receipt"
+entity BridgeInputIdentity id "infra://opentofu-service-contract-bridge/input-identity"
+entity OpenTofuPlanJSON id "infra://opentofu-service-contract-bridge/opentofu-plan"
+entity OpenTofuStateJSON id "infra://opentofu-service-contract-bridge/opentofu-state"
+entity OpenAPIContractDigest id "infra://opentofu-service-contract-bridge/openapi-contract"
+entity ExplicitResourceOperationMapping id "infra://opentofu-service-contract-bridge/explicit-mapping"
+entity ResourceOperationRelations id "infra://opentofu-service-contract-bridge/resource-operation-relations"
+entity ServiceClaimEvidenceRelations id "infra://opentofu-service-contract-bridge/claim-evidence-relations"
+entity UnresolvedCausalFrontier id "infra://opentofu-service-contract-bridge/causal-frontier"
+entity ConfigurationEvidenceProjection id "infra://opentofu-service-contract-bridge/configuration-projection"
+entity CounterexampleCorpus id "infra://opentofu-service-contract-bridge/counterexamples"
+entity DeterministicDossierReplay id "infra://opentofu-service-contract-bridge/replay"
+entity ActionsReadOnlyAuthority id "infra://opentofu-service-contract-bridge/actions-authority"
+
+activity DeclareBridgeInputIdentity(BridgeInputReceipt) -> BridgeInputIdentity
+activity ObserveOpenTofuPlanJSON(BridgeInputIdentity) -> OpenTofuPlanJSON
+activity ObserveOpenTofuStateJSON(BridgeInputIdentity) -> OpenTofuStateJSON
+activity ObserveOpenAPIContractDigest(BridgeInputIdentity) -> OpenAPIContractDigest
+activity BindExplicitResourceOperationMapping(OpenTofuPlanJSON, OpenAPIContractDigest) -> ExplicitResourceOperationMapping
+activity ProjectResourceOperationRelations(ExplicitResourceOperationMapping, OpenTofuStateJSON) -> ResourceOperationRelations
+activity BindServiceClaimEvidence(ResourceOperationRelations, OpenAPIContractDigest, OpenTofuPlanJSON, OpenTofuStateJSON) -> ServiceClaimEvidenceRelations
+activity PreserveCausalFrontier(ResourceOperationRelations, ServiceClaimEvidenceRelations) -> UnresolvedCausalFrontier
+activity ProjectConfigurationEvidence(OpenTofuPlanJSON) -> ConfigurationEvidenceProjection
+activity PreserveCounterexamples(ExplicitResourceOperationMapping, UnresolvedCausalFrontier) -> CounterexampleCorpus
+activity VerifyDossierReplay(UnresolvedCausalFrontier, CounterexampleCorpus) -> DeterministicDossierReplay
+activity PreserveReadOnlyActionsAuthority(BridgeInputIdentity, DeterministicDossierReplay) -> ActionsReadOnlyAuthority
