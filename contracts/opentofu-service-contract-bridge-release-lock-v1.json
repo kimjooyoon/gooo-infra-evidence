@@ -34,6 +34,8 @@
     "iac_engine_version": "1.12.6",
     "platform": "linux_amd64",
     "machine_readable_format_version": "1.0",
+    "binary_sha256": "8f95cbe1523ef7b7913773634a6d6ac94c38f3c8eadba2e18b1e5b01567561ad",
+    "identity_receipt_command": ["tofu", "version", "-json"],
     "assets": {
       "linux": {
         "id": 520762796,
@@ -70,7 +72,8 @@
     "go_build_executions": 0,
     "go_test_executions": 0,
     "opentofu_source_checkouts": 0,
-    "opentofu_binary_executions": 0,
+    "opentofu_binary_executions": 1,
+    "opentofu_version_executions": 1,
     "opentofu_init_executions": 0,
     "opentofu_plan_executions": 0,
     "opentofu_apply_executions": 0,

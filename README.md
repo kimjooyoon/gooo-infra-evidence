@@ -126,9 +126,10 @@ See [the transformation consumer RFC](docs/rfcs/opentofu-receipt-transformation-
 
 The service-contract bridge is the next independent read-only product path in
 this repository. It consumes only immutable `tofu show -json`-shaped plan and
-state fixtures, an OpenAPI document digest, and optional service metadata. It
-does not run OpenTofu, install a provider, write remote state, deploy a
-service, or probe a live endpoint.
+state fixtures, an OpenAPI document digest, and optional service metadata. Its
+Actions gate verifies the pinned OpenTofu release, archive, extracted binary,
+and a read-only `tofu version -json` identity receipt; it does not install a
+provider, write remote state, deploy a service, or probe a live endpoint.
 
 The OpenTofu JSON input follows the documented `format_version: "1.0"`
 representation. A plan carries planned values, resource changes, and the
@@ -155,16 +156,19 @@ the fixed precedence is `REFUTED > UNKNOWN > CLOSED`.
 The Actions-only conformance corpus is fixed at 12 cells and includes normal,
 missing-state `UNKNOWN`, and mixed `REFUTED`-over-`UNKNOWN` cases. The emitted
 machine bundle contains the mapping ontology, exact relations, unresolved
-causal frontier, counterexamples, action execution evidence, release-lock
-identities, and a deterministic human dossier. Proof choices and indicator
-classes are independent; no score or percentage is emitted. Exact
-before/after integer improvement remains `null` plus `UNKNOWN`, and external
-utility remains `0/1 UNKNOWN` without an independent external-user receipt.
+causal frontier, counterexamples, action execution evidence, release/binary/
+receipt identities, exact activity-to-cell binding, and a deterministic human
+dossier. Proof choices and indicator classes are independent; no score or
+percentage is emitted. Exact before/after integer improvement remains `null`
+plus `UNKNOWN`, and external utility remains `0/1 UNKNOWN` without an
+independent external-user receipt.
 
 The bridge is validated only in
 [GitHub Actions](.github/workflows/opentofu-service-contract-bridge.yml) with
 Go 1.27 and released Gooo. The OpenTofu release is digest-locked to `v1.12.6`
-and is verified as an immutable asset but never executed. Root `README.md` is
-excluded from Go/Gooo inventory readiness. The bridge's required
-cross-project gates, repository writes, provider accesses, remote-state
-writes, and OpenTofu executions are all zero.
+and the verified binary runs only `tofu version -json`; init, plan, apply, test,
+provider, cloud, and remote-state operations are zero. Build/test phases are
+`NOT_EXECUTED` with explicit `NOT_APPLICABLE` cache state and exact null/0
+metrics. Root `README.md` is excluded from Go/Gooo inventory readiness, and no
+prior evidence is reused unless subject, source, toolchain, command, and input
+identity all match exactly.

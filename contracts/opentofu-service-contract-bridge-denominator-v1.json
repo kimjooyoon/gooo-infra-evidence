@@ -14,8 +14,8 @@
   ],
   "proof_totals": [
     {"proof_choice": "FOUNDATION", "total": 4},
-    {"proof_choice": "COHERENCE", "total": 5},
-    {"proof_choice": "REGRESSION", "total": 3}
+    {"proof_choice": "COHERENCE", "total": 4},
+    {"proof_choice": "REGRESSION", "total": 4}
   ],
   "indicator_totals": [
     {"indicator_class": "DRIVER", "total": 4},
@@ -77,7 +77,7 @@
       "activity": "BindExplicitResourceOperationMapping",
       "stage": "MAPPING",
       "step": "BIND_EXPLICIT_RESOURCE_OPERATION_MAPPING",
-      "proof_choice": "COHERENCE",
+      "proof_choice": "REGRESSION",
       "indicator_class": "OUTCOME",
       "closed_reason": "EXPLICIT_TYPED_MAPPING_BOUND",
       "next_operation": "PROVIDE_EXPLICIT_TYPED_MAPPING",
