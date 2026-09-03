@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+trap 'status=$?; printf "bridge generator failed at line %s: %s (status %s)\n" "$LINENO" "$BASH_COMMAND" "$status" >&2' ERR
 
 if [ "$#" -ne 5 ]; then
   printf 'usage: generate-opentofu-service-contract-bridge.sh ROOT CASE ACTIONS_EVIDENCE OUTPUT_DIR SUBJECT_SHA\n' >&2
