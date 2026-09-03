@@ -49,8 +49,8 @@ jq -e '
   .authority.opentofu_test_executions==0 and .authority.opentofu_provider_accesses==0 and
   .authority.opentofu_remote_state_writes==0 and .authority.opentofu_cloud_accesses==0 and
   .authority.network_side_effects==0 and .authority.network_writes==0 and .authority.sibling_checkouts==0 and .authority.same_pr_evidence_cycles==0 and
-  all([.phases.gooo_graph,.phases.activity_resolution,.phases.opentofu_identity]; .execution_state=="EXECUTED" and .cache_state=="NOT_REUSED" and (.wall_ms|type)=="number" and (.peak_rss_kib|type)=="number" and .wall_ms>=0 and .peak_rss_kib>0 and .executed_count>0 and .reused_count==0 and .skipped_count==0) and
-  all([.phases.build,.phases.test]; .execution_state=="NOT_EXECUTED" and .cache_state=="NOT_APPLICABLE" and .wall_ms==null and .peak_rss_kib==null and .executed_count==0 and .reused_count==0 and .skipped_count==0) and
+  all([.phases.gooo_graph,.phases.activity_resolution,.phases.opentofu_identity][]; .execution_state=="EXECUTED" and .cache_state=="NOT_REUSED" and (.wall_ms|type)=="number" and (.peak_rss_kib|type)=="number" and .wall_ms>=0 and .peak_rss_kib>0 and .executed_count>0 and .reused_count==0 and .skipped_count==0) and
+  all([.phases.build,.phases.test][]; .execution_state=="NOT_EXECUTED" and .cache_state=="NOT_APPLICABLE" and .wall_ms==null and .peak_rss_kib==null and .executed_count==0 and .reused_count==0 and .skipped_count==0) and
   .inventory.root_readme_excluded==true and all(.inventory.per_file[]; .path!="README.md")
 ' "$actions_evidence" >/dev/null
 printf 'bridge evaluator: actions evidence accepted\n'

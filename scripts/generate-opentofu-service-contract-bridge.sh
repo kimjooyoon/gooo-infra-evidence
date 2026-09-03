@@ -141,8 +141,8 @@ jq -e '
 jq -e --arg subject_sha "$subject_sha" '
   .schema=="gooo/infra-evidence/opentofu-service-contract-bridge/actions-evidence/v2" and
   .go_version=="go1.27.0" and
-  all([.phases.gooo_graph,.phases.activity_resolution,.phases.opentofu_identity]; .execution_state=="EXECUTED" and .cache_state=="NOT_REUSED" and (.wall_ms|type)=="number" and (.peak_rss_kib|type)=="number" and .wall_ms>=0 and .peak_rss_kib>0 and .executed_count>0 and .reused_count==0 and .skipped_count==0) and
-  all([.phases.build,.phases.test]; .execution_state=="NOT_EXECUTED" and .cache_state=="NOT_APPLICABLE" and .wall_ms==null and .peak_rss_kib==null and .executed_count==0 and .reused_count==0 and .skipped_count==0) and
+  all([.phases.gooo_graph,.phases.activity_resolution,.phases.opentofu_identity][]; .execution_state=="EXECUTED" and .cache_state=="NOT_REUSED" and (.wall_ms|type)=="number" and (.peak_rss_kib|type)=="number" and .wall_ms>=0 and .peak_rss_kib>0 and .executed_count>0 and .reused_count==0 and .skipped_count==0) and
+  all([.phases.build,.phases.test][]; .execution_state=="NOT_EXECUTED" and .cache_state=="NOT_APPLICABLE" and .wall_ms==null and .peak_rss_kib==null and .executed_count==0 and .reused_count==0 and .skipped_count==0) and
   .authority.repository_writes==0 and .authority.local_test_executions==0 and
   .authority.cross_project_required_gates==0 and
   .authority.opentofu_binary_executions==1 and .authority.opentofu_version_executions==1 and
